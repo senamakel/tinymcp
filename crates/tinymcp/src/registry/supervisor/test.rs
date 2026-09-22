@@ -1285,3 +1285,73 @@ fn every_event_names_its_server_and_its_kind() {
     }
     assert!(TickReport::default().is_empty());
 }
+
+/// Binds a loopback port and serves a server that rejects every request with
+/// HTTP 401, as an MCP server does when its bearer token is missing or wrong.
+async fn serve_unauthorized_server() -> String {
+    let app = Router::new().route(
+        "/",
+        post(|| async { (axum::http::StatusCode::UNAUTHORIZED, "unauthorized") }),
+    );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    format!("http://{addr}/")
+}
+
+#[tokio::test]
+async fn a_401_is_terminal_and_earns_no_backoff_penalty() {
+    // A 401 does not become a 200 by waiting: the credential is missing or
+    // wrong and only the user can change it. Retrying on the backoff curve
+    // means a request every BACKOFF_MAX forever, which is the reported storm
+    // (18+ failures in one session, every 300s, openhuman#6412).
+    let url = serve_unauthorized_server().await;
+    let store = Store::open_in_memory().unwrap();
+    store
+        .insert_server(&install("srv-1", Transport::HttpRemote { url }, true))
+        .unwrap();
+
+    let connections = Connections::new();
+    let oauth = OAuthFlow::new(None).unwrap();
+    let mut supervisor = supervisor();
+    let base = Instant::now();
+
+    supervisor.tick(&store, &connections, &oauth, base).await;
+
+    assert!(!connections.is_connected("srv-1").await);
+    assert_eq!(
+        supervisor.backed_off_count(),
+        0,
+        "a backoff promises that waiting helps; a 401 needs a new credential"
+    );
+    assert_eq!(
+        supervisor.terminally_failed_count(),
+        1,
+        "the unauthorized server must be parked, not penalised"
+    );
+
+    // Far past any backoff window: a penalised server would certainly have
+    // been retried by now. A parked one must not be.
+    supervisor
+        .tick(&store, &connections, &oauth, base + BACKOFF_MAX * 2)
+        .await;
+
+    assert_eq!(supervisor.backed_off_count(), 0);
+    assert_eq!(
+        supervisor.terminally_failed_count(),
+        1,
+        "still parked — nothing about the credential changed"
+    );
+
+    // Toggling the server is the way back, so a user who sets the token can
+    // reconnect without restarting the app.
+    store.update_enabled("srv-1", false).unwrap();
+    supervisor
+        .tick(&store, &connections, &oauth, base + BACKOFF_MAX * 3)
+        .await;
+
+    assert_eq!(supervisor.terminally_failed_count(), 0);
+}

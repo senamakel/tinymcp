@@ -264,10 +264,17 @@ impl Supervisor {
                     after_failures,
                 }
             }
-            Err(error) if error.is_missing_runtime() => {
+            Err(error) if error.is_missing_runtime() || error.is_unauthorized() => {
                 // No backoff entry: a penalty says "wait, then try again",
                 // and there is nothing to wait for. The server is parked
                 // until the user disables and re-enables it.
+                //
+                // A rejected credential is terminal for the same reason a
+                // missing runtime is: waiting does not turn a 401 into a 200,
+                // only the user supplying a working token does. Retrying it on
+                // the curve is a request every BACKOFF_MAX for the life of the
+                // session against someone else's endpoint, and one warning per
+                // retry in the log (openhuman#6412).
                 self.backoff.remove(&server_id);
                 self.terminal.insert(server_id.clone());
                 tracing::warn!(
