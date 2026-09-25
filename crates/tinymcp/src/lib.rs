@@ -73,6 +73,8 @@ mod error;
 pub mod registry;
 #[cfg(feature = "module")]
 mod tinybus_module;
+#[cfg(feature = "linked")]
+pub use tinybus_module::linked_module;
 pub mod transport;
 
 pub use audit::AuditStore;
