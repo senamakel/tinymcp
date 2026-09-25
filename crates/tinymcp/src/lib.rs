@@ -73,7 +73,7 @@ mod error;
 pub mod registry;
 #[cfg(feature = "module")]
 mod tinybus_module;
-#[cfg(feature = "linked")]
+#[cfg(feature = "static-link")]
 pub use tinybus_module::linked_module;
 pub mod transport;
 

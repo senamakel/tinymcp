@@ -49,7 +49,7 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
     Ok(())
 }
 
-tinybus_module::module_export! {
+tinybus_module::module_export_optional_static! {
     setup = setup,
     config = ModuleConfig,
     // More than one, because a tool call on one server must not wait behind a
