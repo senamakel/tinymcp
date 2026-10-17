@@ -33,7 +33,7 @@ repository = "https://github.com/tinyhumansai/tinymcp"
 tinymcp-bus = { path = "crates/tinymcp-bus" }
 # Canonical storage request types for this crate's contract, with client/TinyBus
 # defaults disabled: tinymcp-bus carries declarations only, not transport.
-tinystoragedrivers-bus = { version = "1.5", git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v1.5.0", default-features = false }
+tinystoragedrivers-bus = { version = "1.5", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8", default-features = false }
 # The TinyBox bus contract, used by the jailed stdio launcher to start MCP
 # servers inside TinyBox's native jail. Contract types only: the module reaches
 # TinyBox through the bus and never links its implementation.

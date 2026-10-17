@@ -2,6 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use super::ports::to_core_collection_spec;
 use super::*;
 use std::path::{Path, PathBuf};
 

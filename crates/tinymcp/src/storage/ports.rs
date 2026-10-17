@@ -3,7 +3,7 @@
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
-use tinystoragedrivers_bus::CollectionSpec as BusCollectionSpec;
+use tinymcp_bus::CollectionSpec as BusCollectionSpec;
 use tinystoragedrivers_core::{
     Blocking, CollectionSpec, DocumentStore, IndexSpec, MemoryStorage, Scope, ScopedStorage,
     SearchSpec, StorageBackend, StreamStore,
