@@ -213,10 +213,14 @@ fn tool_cache_rejects_corrupt_json() {
 #[test]
 fn opening_declares_every_collection_the_module_uses() {
     let (ports, _store) = shared();
-    for spec in crate::storage::collection_specs() {
+    for spec in tinymcp_bus::storage_needs().needs.collections {
+        let collection = spec.name.clone();
         ports
             .run("counting", move |ports| async move {
-                ports.documents.count(&spec.name, &Filter::default()).await
+                ports
+                    .documents
+                    .count(&collection, &Filter::default())
+                    .await
             })
             .unwrap();
     }

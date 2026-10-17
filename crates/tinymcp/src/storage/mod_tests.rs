@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 fn dir(name: &str) -> PathBuf {
     std::env::temp_dir().join("tinymcp-test").join(name)
 }
-use tinystoragedrivers_core::{CollectionSpec, Filter, MemoryStorage};
+use tinystoragedrivers_core::{Filter, MemoryStorage};
 
 use crate::{AuditStore, Store};
 use tinymcp_bus::NewMcpWriteRecord;

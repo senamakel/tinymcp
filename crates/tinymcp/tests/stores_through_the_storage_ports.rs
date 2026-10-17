@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 
 use tinymcp::storage::{self, StoragePorts};
 use tinymcp::{AuditStore, CommandKind, InstalledServer, NewMcpWriteRecord, Store, Transport};
+use tinymcp_bus::StorageNeedsWithExactSecrets;
 
 fn server(id: &str, name: &str) -> InstalledServer {
     InstalledServer {
@@ -85,10 +86,40 @@ fn the_audit_log_and_the_servers_share_ports_but_not_records() {
 }
 
 #[test]
-fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
-    use tinymcp_bus::StorageNeeds;
+fn installed_servers_can_be_listed_and_removed_with_their_credentials() {
+    let ports = StoragePorts::memory().unwrap();
+    let store = Store::open(ports).unwrap();
+    let first = server("srv-1", "@acme/first");
+    let second = server("srv-2", "@acme/second");
+    store.insert_server(&first).unwrap();
+    store.insert_server(&second).unwrap();
+    store
+        .set_env_values(
+            "srv-1",
+            &BTreeMap::from([("API_KEY".to_string(), "sekrit".to_string())]),
+        )
+        .unwrap();
 
-    let needs: StorageNeeds<'_> = tinymcp_bus::storage_needs();
+    assert_eq!(store.get_server("srv-1").unwrap(), first);
+    assert_eq!(
+        store
+            .list_servers()
+            .unwrap()
+            .iter()
+            .map(|server| server.server_id.as_str())
+            .collect::<Vec<_>>(),
+        ["srv-1", "srv-2"]
+    );
+    assert!(store.delete_server("srv-1").unwrap());
+    assert_eq!(store.list_servers().unwrap(), [second]);
+    assert!(store.load_env_values("srv-1").unwrap().is_empty());
+    assert!(!store.delete_server("srv-1").unwrap());
+}
+
+#[test]
+fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
+    let declaration: StorageNeedsWithExactSecrets<'_> = tinymcp_bus::storage_needs();
+    let needs = declaration.needs;
     let names: Vec<_> = needs
         .collections
         .iter()
@@ -142,16 +173,5 @@ fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
     assert!(needs.blob_prefixes.is_empty());
     assert_eq!(needs.stream_prefixes, ["mcp_audit"]);
     assert_eq!(needs.secret_prefixes, ["mcp_client_env/"]);
-
-    // The cache fingerprint key is an exact-name need in the current local
-    // declaration. It must not be widened to the `mcp_cache_fingerprint_key*`
-    // prefix while the canonical bus contract lacks an exact-name selector.
-    assert_eq!(
-        storage::grant()
-            .secrets
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
-        ["mcp_client_env/*", "mcp_cache_fingerprint_key"]
-    );
+    assert_eq!(declaration.exact_secret_names, ["mcp_cache_fingerprint_key"]);
 }
