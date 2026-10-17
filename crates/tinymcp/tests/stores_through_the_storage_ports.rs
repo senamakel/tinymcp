@@ -173,5 +173,8 @@ fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
     assert!(needs.blob_prefixes.is_empty());
     assert_eq!(needs.stream_prefixes, ["mcp_audit"]);
     assert_eq!(needs.secret_prefixes, ["mcp_client_env/"]);
-    assert_eq!(declaration.exact_secret_names, ["mcp_cache_fingerprint_key"]);
+    assert_eq!(
+        declaration.exact_secret_names,
+        ["mcp_cache_fingerprint_key"]
+    );
 }

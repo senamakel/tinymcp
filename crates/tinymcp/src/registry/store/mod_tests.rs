@@ -217,10 +217,7 @@ fn opening_declares_every_collection_the_module_uses() {
         let collection = spec.name.clone();
         ports
             .run("counting", move |ports| async move {
-                ports
-                    .documents
-                    .count(&collection, &Filter::default())
-                    .await
+                ports.documents.count(&collection, &Filter::default()).await
             })
             .unwrap();
     }

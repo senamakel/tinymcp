@@ -53,10 +53,7 @@ fn the_contract_declares_every_collection_index_stream_and_secret_selector() {
         indexes(REGISTRY_CACHE),
         [("cache_key", vec!["cache_key"], false)]
     );
-    assert_eq!(
-        indexes(REGISTRY_INDEX),
-        [("source", vec!["source"], false)]
-    );
+    assert_eq!(indexes(REGISTRY_INDEX), [("source", vec!["source"], false)]);
     assert!(needs.collections.iter().all(|spec| spec.search.is_none()));
     assert!(needs.blob_prefixes.is_empty());
     assert_eq!(needs.stream_prefixes, [AUDIT_STREAM]);

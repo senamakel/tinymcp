@@ -39,13 +39,13 @@ mod provider;
 
 #[cfg(feature = "module")]
 pub use bus::BusProvider;
-pub use tinymcp_bus::storage::{
-    AUDIT_STREAM, CACHE_KEY_SECRET, ENV_SECRET_PREFIX, REGISTRY_CACHE, REGISTRY_INDEX,
-    REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE, storage_needs,
-};
 pub use ports::StoragePorts;
 pub use provider::{
     MemoryProvider, StorageProvider, install_provider, installed_provider, provider_installed,
+};
+pub use tinymcp_bus::storage::{
+    AUDIT_STREAM, CACHE_KEY_SECRET, ENV_SECRET_PREFIX, REGISTRY_CACHE, REGISTRY_INDEX,
+    REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE, storage_needs,
 };
 
 #[cfg(all(test, feature = "module"))]
