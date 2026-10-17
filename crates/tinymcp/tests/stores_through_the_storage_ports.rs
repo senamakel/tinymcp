@@ -8,8 +8,9 @@
 
 use std::collections::BTreeMap;
 
-use tinymcp::storage::{self, StoragePorts};
+use tinymcp::storage::StoragePorts;
 use tinymcp::{AuditStore, CommandKind, InstalledServer, NewMcpWriteRecord, Store, Transport};
+use tinymcp_bus::StorageNeedsWithExactSecrets;
 
 fn server(id: &str, name: &str) -> InstalledServer {
     InstalledServer {
@@ -85,10 +86,95 @@ fn the_audit_log_and_the_servers_share_ports_but_not_records() {
 }
 
 #[test]
-fn the_declared_grant_covers_the_collections_a_store_creates() {
-    let granted = storage::grant();
-    for spec in storage::collection_specs() {
-        assert!(granted.collections.contains(&spec.name));
-    }
-    assert!(granted.streams.contains(&storage::AUDIT_STREAM.to_string()));
+fn installed_servers_can_be_listed_and_removed_with_their_credentials() {
+    let ports = StoragePorts::memory().unwrap();
+    let store = Store::open(ports).unwrap();
+    let first = server("srv-1", "@acme/first");
+    let second = server("srv-2", "@acme/second");
+    store.insert_server(&first).unwrap();
+    store.insert_server(&second).unwrap();
+    store
+        .set_env_values(
+            "srv-1",
+            &BTreeMap::from([("API_KEY".to_string(), "sekrit".to_string())]),
+        )
+        .unwrap();
+
+    assert_eq!(store.get_server("srv-1").unwrap(), first);
+    assert_eq!(
+        store
+            .list_servers()
+            .unwrap()
+            .iter()
+            .map(|server| server.server_id.as_str())
+            .collect::<Vec<_>>(),
+        ["srv-1", "srv-2"]
+    );
+    assert!(store.delete_server("srv-1").unwrap());
+    assert_eq!(store.list_servers().unwrap(), [second]);
+    assert!(store.load_env_values("srv-1").unwrap().is_empty());
+    assert!(!store.delete_server("srv-1").unwrap());
+}
+
+#[test]
+fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
+    let declaration: StorageNeedsWithExactSecrets<'_> = tinymcp_bus::storage_needs();
+    let needs = declaration.needs;
+    let names: Vec<_> = needs
+        .collections
+        .iter()
+        .map(|spec| spec.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "mcp_servers",
+            "mcp_server_names",
+            "mcp_registry_cache",
+            "mcp_tool_cache",
+            "mcp_registry_index",
+            "mcp_registry_index_state",
+        ]
+    );
+
+    let indexes = |collection: &str| {
+        needs
+            .collections
+            .iter()
+            .find(|spec| spec.name == collection)
+            .unwrap()
+            .indexes
+            .iter()
+            .map(|index| {
+                (
+                    index.name.as_str(),
+                    index.fields.iter().map(String::as_str).collect::<Vec<_>>(),
+                    index.unique,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        indexes("mcp_servers"),
+        [
+            ("qualified_name", vec!["qualified_name"], false),
+            ("installed_at", vec!["installed_at"], false),
+        ]
+    );
+    assert_eq!(
+        indexes("mcp_registry_cache"),
+        [("cache_key", vec!["cache_key"], false)]
+    );
+    assert_eq!(
+        indexes("mcp_registry_index"),
+        [("source", vec!["source"], false)]
+    );
+    assert!(needs.collections.iter().all(|spec| spec.search.is_none()));
+    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
+    assert_eq!(needs.stream_prefixes, ["mcp_audit"]);
+    assert_eq!(needs.secret_prefixes, ["mcp_client_env/"]);
+    assert_eq!(
+        declaration.exact_secret_names,
+        ["mcp_cache_fingerprint_key"]
+    );
 }

@@ -12,13 +12,13 @@ members = ["crates/*"]
 # repository; each contains a full copy of this manifest and every crate under
 # it, so without this entry cargo walks into them and reports duplicate
 # packages.
-exclude = ["vendor", "worktrees"]
+exclude = ["vendor", "worktrees", "crates/tinymcp-bus/consumer"]
 
 # Shared package metadata. A member inherits a field with `field.workspace =
 # true`, so the version the release workflow bumps is written in exactly one
 # place and every crate moves together.
 [workspace.package]
-version = "0.18.7"
+version = "0.19.0"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-only"
@@ -31,6 +31,9 @@ repository = "https://github.com/tinyhumansai/tinymcp"
 # release, and a pinned requirement here would stop resolving the moment it did.
 # Nothing in this workspace is published, so the path is the whole address.
 tinymcp-bus = { path = "crates/tinymcp-bus" }
+# Canonical storage request types for this crate's contract, with client/TinyBus
+# defaults disabled: tinymcp-bus carries declarations only, not transport.
+tinystoragedrivers-bus = { version = "1.5", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8", default-features = false }
 # The TinyBox bus contract, used by the jailed stdio launcher to start MCP
 # servers inside TinyBox's native jail. Contract types only: the module reaches
 # TinyBox through the bus and never links its implementation.
@@ -38,13 +41,13 @@ tinybox-bus = { git = "https://github.com/tinyhumansai/tinybox", tag = "v0.1.36"
 # TinyBus defines the message types, interface macro, and frozen module ABI
 # used by the generated integration. Socket and CLI features are unnecessary
 # here.
-tinybus = { version = ">=0.1.3, <0.2", default-features = false, features = [
+tinybus = { version = "0.1.7", git = "https://github.com/tinyhumansai/tinybus", rev = "ed1ee4f5ee561c0320fa715eef114e0f1b888e41", default-features = false, features = [
     "macros",
     "modules",
 ] }
 # The module-side SDK owns the isolated runtime and exports the ABI entrypoints
 # required by TinyBus's dynamic loader.
-tinybus-module = ">=0.1.3, <0.2"
+tinybus-module = { version = "0.1.7", git = "https://github.com/tinyhumansai/tinybus", rev = "ed1ee4f5ee561c0320fa715eef114e0f1b888e41" }
 # Derive macros for the crate-wide error type in `crates/tinymcp/src/error/`.
 # Every dependency entry should carry a comment like this one saying why it is
 # here.
@@ -201,3 +204,4 @@ tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
 # the module's `Connection` and the storage transport's are one type.
 [patch."https://github.com/tinyhumansai/tinybus"]
 tinybus = { path = "vendor/tinybus/crates/tinybus" }
+tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }

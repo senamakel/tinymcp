@@ -1,0 +1,12 @@
+[package]
+name = "tinymcp-storage-needs-consumer"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[workspace]
+
+[dependencies]
+tinymcp-bus = { path = ".." }
+tinystoragedrivers-bus = { version = "1.5", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8", default-features = false }

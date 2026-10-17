@@ -40,10 +40,24 @@ tenants in one process. The host owns storage; this crate asks for ports.
 | secrets | `mcp_client_env/<server id>` | environment values and the OAuth bundle, one secret |
 | secrets | `mcp_cache_fingerprint_key` | key for tool-cache fingerprints (hex text) |
 
-`storage::grant()` returns this as data (`StorageGrant`) for a host that serves
-storage over the bus: it provisions exactly these collections (with the
-indexes from `storage::collection_specs()`), this stream and these secret
-names, and refuses the rest.
+`tinymcp-bus` declares these resources with the canonical
+`tinystoragedrivers_bus::StorageNeedsWithExactSecrets` type. Its `needs`
+field carries each collection schema and index, the `mcp_audit` stream prefix,
+and the `mcp_client_env/` secret prefix. The separate `exact_secret_names`
+field declares `mcp_cache_fingerprint_key` as an exact-name need; it must not
+be widened to a prefix. This declaration describes what the module uses; it
+does not grant authority by itself. A host selects the declaration through its
+module admission and resource-mapping policy, applies its own storage policy,
+and binds the resulting grant to the authenticated caller. TinyMCP does not
+maintain a parallel `StorageGrant` list of the same resources.
+
+Consumers replacing the implementation-local storage API should read
+`tinymcp_bus::storage_needs().needs.collections` and the sibling stream and
+secret selectors; exact names are in
+`tinymcp_bus::storage_needs().exact_secret_names`. The implementation crate
+re-exports this declaration as `tinymcp::storage::storage_needs()`. It replaces
+the removed `tinymcp::storage::{StorageGrant, grant, collection_specs}`
+declarations.
 
 ## Behaviour notes
 

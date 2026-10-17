@@ -3,7 +3,7 @@
 //! A loaded module cannot reach the host's storage handles, so it asks the
 //! host for them over its own `TinyBus` connection. The host binds the caller
 //! to one scope it chooses from the broker-authenticated sender; the module
-//! never names a tenant, a collection outside its [`grant`](super::grant) or a
+//! never names a tenant, a collection outside its storage needs or a
 //! backend. What comes back implements the same port traits as an in-process
 //! backend, so the stores above this file are identical in both cases.
 

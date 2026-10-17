@@ -15,3 +15,25 @@ jobs:
       coverage-script: scripts/check-coverage.sh
       module-e2e-script: scripts/test-e2e.sh
       feature-test-script: scripts/test-features.sh
+  storage-needs-consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88.0
+      - name: Check the standalone canonical consumer
+        run: |
+          set -euo pipefail
+          python3 scripts/test-storage-needs-consumer-guard.py
+          cargo --config "build.target-dir = \"${GITHUB_WORKSPACE}/target\"" test --locked --manifest-path crates/tinymcp-bus/consumer/Cargo.toml
+          cargo --config "build.target-dir = \"${GITHUB_WORKSPACE}/target\"" build --locked --manifest-path crates/tinymcp-bus/consumer/Cargo.toml
+          python3 scripts/check-storage-needs-consumer.py
+  release-workflow-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise the main and reviewed-epic dispatch contract
+        run: python3 scripts/test-release-workflow.py
