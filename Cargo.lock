@@ -1900,6 +1900,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "tinystoragedrivers-bus 1.5.0",
  "url",
 ]
 
@@ -1914,6 +1915,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinystoragedrivers-bus"
+version = "1.5.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "tinystoragedrivers-busproxy"
 version = "0.11.0"
 source = "git+https://github.com/tinyhumansai/tinystoragedrivers?tag=v0.11.0#9eeef54aea403ac07461a612189bdf4982782823"
@@ -1922,7 +1932,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tinybus",
- "tinystoragedrivers-bus",
+ "tinystoragedrivers-bus 0.11.0",
  "tinystoragedrivers-client",
  "tinystoragedrivers-core",
  "tokio",
@@ -1936,7 +1946,7 @@ dependencies = [
  "async-trait",
  "serde",
  "serde_json",
- "tinystoragedrivers-bus",
+ "tinystoragedrivers-bus 0.11.0",
  "tinystoragedrivers-core",
  "tinystoragedrivers-secrets",
  "tokio",

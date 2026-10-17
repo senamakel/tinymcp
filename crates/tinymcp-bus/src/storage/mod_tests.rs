@@ -1,4 +1,4 @@
-//! Tests for TinyMCP's canonical storage declaration.
+//! Tests for `TinyMCP`'s canonical storage declaration.
 
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
@@ -55,7 +55,7 @@ fn the_contract_declares_every_collection_index_stream_and_secret_selector() {
     );
     assert_eq!(indexes(REGISTRY_INDEX), [("source", vec!["source"], false)]);
     assert!(needs.collections.iter().all(|spec| spec.search.is_none()));
-    assert!(needs.blob_prefixes.is_empty());
+    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
     assert_eq!(needs.stream_prefixes, [AUDIT_STREAM]);
     assert_eq!(needs.secret_prefixes, [ENV_SECRET_PREFIX]);
     assert_eq!(declaration.exact_secret_names, [CACHE_KEY_SECRET]);

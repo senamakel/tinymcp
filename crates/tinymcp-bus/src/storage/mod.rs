@@ -1,4 +1,4 @@
-//! The storage resources TinyMCP asks its host to provide.
+//! The storage resources `TinyMCP` asks its host to provide.
 //!
 //! These declarations describe module needs; host policy decides what to
 //! grant. Keeping collection schemas, indexes, streams, and secret selectors
@@ -53,7 +53,7 @@ static COLLECTIONS: LazyLock<Vec<CollectionSpec>> = LazyLock::new(|| {
     ]
 });
 
-/// Returns TinyMCP's complete canonical storage declaration.
+/// Returns `TinyMCP`'s complete canonical storage declaration.
 ///
 /// The returned borrowed references point to process-static metadata. It
 /// requests its cache-key secret by exact name; only the environment bundle

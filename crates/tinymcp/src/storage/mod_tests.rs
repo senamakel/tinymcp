@@ -39,7 +39,7 @@ fn every_declared_collection_is_valid_and_none_needs_full_text_search() {
     let index = needs
         .needs
         .collections
-        .into_iter()
+        .iter()
         .find(|spec| spec.name == REGISTRY_INDEX)
         .expect("the index is declared");
     // Index search filters rows by substring, so the backend need not offer

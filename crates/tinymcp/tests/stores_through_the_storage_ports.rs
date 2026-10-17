@@ -170,7 +170,7 @@ fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
         [("source", vec!["source"], false)]
     );
     assert!(needs.collections.iter().all(|spec| spec.search.is_none()));
-    assert!(needs.blob_prefixes.is_empty());
+    assert_eq!(needs.blob_prefixes, &[] as &[&str]);
     assert_eq!(needs.stream_prefixes, ["mcp_audit"]);
     assert_eq!(needs.secret_prefixes, ["mcp_client_env/"]);
     assert_eq!(
