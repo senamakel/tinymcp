@@ -51,6 +51,14 @@ module admission and resource-mapping policy, applies its own storage policy,
 and binds the resulting grant to the authenticated caller. TinyMCP does not
 maintain a parallel `StorageGrant` list of the same resources.
 
+Consumers replacing the implementation-local storage API should read
+`tinymcp_bus::storage_needs().needs.collections` and the sibling stream and
+secret selectors; exact names are in
+`tinymcp_bus::storage_needs().exact_secret_names`. The implementation crate
+re-exports this declaration as `tinymcp::storage::storage_needs()`. It replaces
+the removed `tinymcp::storage::{StorageGrant, grant, collection_specs}`
+declarations.
+
 ## Behaviour notes
 
 - Index search: the port finds candidates by words and word prefixes; each is

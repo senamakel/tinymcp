@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 MAIN_RELEASE_PIN = "4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
 REVIEWED_RELEASE_PIN = "70a10f86022c9ceb1cf91b9a76932f8abc1cf68d"
+MODULE_CI_PIN = "62c8ae0468f3882b75947d5cba9687e609ce1fed"
 
 
 def resolver_script(workflow_text: str) -> str:
@@ -135,6 +136,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("pull-requests: read", workflow)
         self.assertIn("checks: read", workflow)
         self.assertIn("actions: read", workflow)
+        ci_workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertIn(
+            f"uses: tinyhumansai/.github/.github/workflows/module-ci.yml@{MODULE_CI_PIN}",
+            ci_workflow,
+        )
 
 
 if __name__ == "__main__":
