@@ -4,11 +4,13 @@ use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
 use tinystoragedrivers_core::{
-    Blocking, DocumentStore, MemoryStorage, Scope, ScopedStorage, StorageBackend, StreamStore,
+    Blocking, CollectionSpec, DocumentStore, IndexSpec, MemoryStorage, Scope, ScopedStorage,
+    SearchSpec, StorageBackend, StreamStore,
 };
+use tinystoragedrivers_bus::CollectionSpec as BusCollectionSpec;
 use tinystoragedrivers_secrets::{MemorySecrets, SecretStore};
 
-use super::grant::{SERVERS, collection_specs};
+use super::{SERVERS, storage_needs};
 use crate::error::{Error, Result};
 
 /// The three ports the module persists through.
@@ -86,15 +88,17 @@ impl StoragePorts {
         Ok(Self::from_scoped(&scoped, Arc::new(MemorySecrets::new())))
     }
 
-    /// Asks the documents port for the collections [`grant`](super::grant)
-    /// declares. Idempotent.
+    /// Asks the documents port for the collections declared by
+    /// [`storage_needs`]. Idempotent.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Store`] when the port refuses a collection.
     pub fn prepare(&self) -> Result<()> {
+        let specs = storage_needs().needs.collections.to_vec();
         self.run("declaring the collections", |ports| async move {
-            for spec in collection_specs() {
+            for spec in specs {
+                let spec = to_core_collection_spec(&spec);
                 ports.documents.ensure_collection(&spec).await?;
             }
             Ok(())
@@ -123,7 +127,7 @@ impl StoragePorts {
                         Err(error)
                     }
                 })?;
-            let audited = ports.streams.len(super::grant::AUDIT_STREAM).await?;
+            let audited = ports.streams.len(super::AUDIT_STREAM).await?;
             Ok(servers > 0 || audited > 0)
         })
     }
@@ -145,6 +149,27 @@ impl StoragePorts {
             .run(future)
             .map_err(|source| Error::store(action, source))?
             .map_err(|source| Error::store(action, source))
+    }
+}
+
+/// Converts the canonical wire declaration into the in-process storage port
+/// schema without changing its indexes, expiry, or search fields.
+pub(super) fn to_core_collection_spec(spec: &BusCollectionSpec) -> CollectionSpec {
+    CollectionSpec {
+        name: spec.name.clone(),
+        indexes: spec
+            .indexes
+            .iter()
+            .map(|index| IndexSpec {
+                name: index.name.clone(),
+                fields: index.fields.clone(),
+                unique: index.unique,
+            })
+            .collect(),
+        ttl_field: spec.ttl_field.clone(),
+        search: spec.search.as_ref().map(|search| SearchSpec {
+            fields: search.fields.clone(),
+        }),
     }
 }
 

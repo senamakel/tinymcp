@@ -1,4 +1,4 @@
-//! Tests for the storage ports, the grant and the providers.
+//! Tests for the storage ports, declared needs, and providers.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 fn dir(name: &str) -> PathBuf {
     std::env::temp_dir().join("tinymcp-test").join(name)
 }
-use tinystoragedrivers_core::{Filter, MemoryStorage};
+use tinystoragedrivers_core::{CollectionSpec, Filter, MemoryStorage};
 
 use crate::{AuditStore, Store};
 use tinymcp_bus::NewMcpWriteRecord;
@@ -28,28 +28,16 @@ fn a_write() -> NewMcpWriteRecord {
 }
 
 #[test]
-fn the_grant_names_every_collection_the_specs_declare() {
-    let specs = collection_specs();
-    let granted = grant();
-    let declared: Vec<String> = specs.into_iter().map(|spec| spec.name).collect();
-    assert_eq!(granted.collections, declared);
-    assert!(
-        granted
-            .searchable
-            .iter()
-            .all(|name| declared.contains(name))
-    );
-    assert_eq!(granted.streams, [AUDIT_STREAM]);
-    assert!(granted.secrets.contains(&format!("{ENV_SECRET_PREFIX}*")));
-    assert!(granted.secrets.contains(&CACHE_KEY_SECRET.to_string()));
-}
-
-#[test]
 fn every_declared_collection_is_valid_and_none_needs_full_text_search() {
-    for spec in collection_specs() {
-        spec.validate().expect("a valid collection declaration");
+    let needs = storage_needs();
+    for spec in needs.needs.collections {
+        to_core_collection_spec(spec)
+            .validate()
+            .expect("a valid collection declaration");
     }
-    let index = collection_specs()
+    let index = needs
+        .needs
+        .collections
         .into_iter()
         .find(|spec| spec.name == REGISTRY_INDEX)
         .expect("the index is declared");
@@ -192,7 +180,8 @@ async fn failing_documents_refuse_every_call_except_declaring_collections() {
             .capabilities()
             .contains(tinystoragedrivers_core::Capability::Transactions)
     );
-    for spec in collection_specs() {
+    for spec in storage_needs().needs.collections {
+        let spec = to_core_collection_spec(spec);
         documents.ensure_collection(&spec).await.unwrap();
     }
     let filter = Filter::eq("a", "b");

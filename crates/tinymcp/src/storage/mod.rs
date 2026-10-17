@@ -16,13 +16,13 @@
 //! one, a process-wide in-memory provider answers, which is the right shape
 //! for tests and for a host that wants only its statically declared servers.
 //!
-//! # The grant
+//! # Declared needs
 //!
-//! The module declares what it needs ([`StorageGrant`], from [`grant`]): the
-//! collections and their indexes, the stream, and the secret names. A host
-//! that serves storage over the bus provisions exactly that and refuses
-//! anything else; the module never creates schema on its own authority beyond
-//! [`StoragePorts::prepare`], which asks for the declared collections only.
+//! The bus contract's [`storage_needs`] declaration lists the collections and
+//! indexes, the audit stream, and the environment and cache-key secret
+//! selectors. These are requests, not authority: the host applies its own
+//! policy and binds its resulting grant to the caller. The implementation uses
+//! the same collection schemas in [`StoragePorts::prepare`].
 //!
 //! # Scope
 //!
@@ -34,17 +34,14 @@
 mod bus;
 #[cfg(test)]
 mod failing;
-mod grant;
 mod ports;
 mod provider;
 
 #[cfg(feature = "module")]
 pub use bus::BusProvider;
-pub use grant::{
-    AUDIT_STREAM, CACHE_KEY_SECRET, ENV_SECRET_PREFIX, StorageGrant, collection_specs, grant,
-};
-pub(crate) use grant::{
-    REGISTRY_CACHE, REGISTRY_INDEX, REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE,
+pub use tinymcp_bus::storage::{
+    AUDIT_STREAM, CACHE_KEY_SECRET, ENV_SECRET_PREFIX, REGISTRY_CACHE, REGISTRY_INDEX,
+    REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE, storage_needs,
 };
 pub use ports::StoragePorts;
 pub use provider::{
