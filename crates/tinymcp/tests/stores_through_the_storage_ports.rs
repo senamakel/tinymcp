@@ -8,7 +8,7 @@
 
 use std::collections::BTreeMap;
 
-use tinymcp::storage::{self, StoragePorts};
+use tinymcp::storage::StoragePorts;
 use tinymcp::{AuditStore, CommandKind, InstalledServer, NewMcpWriteRecord, Store, Transport};
 use tinymcp_bus::StorageNeedsWithExactSecrets;
 

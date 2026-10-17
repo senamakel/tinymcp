@@ -12,7 +12,7 @@ members = ["crates/*"]
 # repository; each contains a full copy of this manifest and every crate under
 # it, so without this entry cargo walks into them and reports duplicate
 # packages.
-exclude = ["vendor", "worktrees"]
+exclude = ["vendor", "worktrees", "crates/tinymcp-bus/consumer"]
 
 # Shared package metadata. A member inherits a field with `field.workspace =
 # true`, so the version the release workflow bumps is written in exactly one
