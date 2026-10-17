@@ -41,19 +41,15 @@ tenants in one process. The host owns storage; this crate asks for ports.
 | secrets | `mcp_cache_fingerprint_key` | key for tool-cache fingerprints (hex text) |
 
 `tinymcp-bus` declares these resources with the canonical
-`tinystoragedrivers_bus::StorageNeeds` type. The declaration carries each
-collection schema and index, the `mcp_audit` stream prefix, and the
-`mcp_client_env/` secret prefix. It describes what the module uses; it does
-not grant authority by itself. A host selects the declaration through its
+`tinystoragedrivers_bus::StorageNeedsWithExactSecrets` type. Its `needs`
+field carries each collection schema and index, the `mcp_audit` stream prefix,
+and the `mcp_client_env/` secret prefix. The separate `exact_secret_names`
+field declares `mcp_cache_fingerprint_key` as an exact-name need; it must not
+be widened to a prefix. This declaration describes what the module uses; it
+does not grant authority by itself. A host selects the declaration through its
 module admission and resource-mapping policy, applies its own storage policy,
 and binds the resulting grant to the authenticated caller. TinyMCP does not
 maintain a parallel `StorageGrant` list of the same resources.
-
-TinyMCP also reads and writes the exact secret name
-`mcp_cache_fingerprint_key`. Storage needs must preserve that exact-name
-selector; representing it as a prefix would admit names that TinyMCP does not
-use. The published TSD bus type has only secret prefixes, so the contract must
-gain an exact-secret selector before this need can be expressed safely.
 
 ## Behaviour notes
 
