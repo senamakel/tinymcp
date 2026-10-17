@@ -141,8 +141,17 @@ fn the_bus_contract_declares_every_persistent_need_with_its_indexes() {
     assert!(needs.collections.iter().all(|spec| spec.search.is_none()));
     assert!(needs.blob_prefixes.is_empty());
     assert_eq!(needs.stream_prefixes, ["mcp_audit"]);
+    assert_eq!(needs.secret_prefixes, ["mcp_client_env/"]);
+
+    // The cache fingerprint key is an exact-name need in the current local
+    // declaration. It must not be widened to the `mcp_cache_fingerprint_key*`
+    // prefix while the canonical bus contract lacks an exact-name selector.
     assert_eq!(
-        needs.secret_prefixes,
-        ["mcp_client_env/", "mcp_cache_fingerprint_key"]
+        storage::grant()
+            .secrets
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["mcp_client_env/*", "mcp_cache_fingerprint_key"]
     );
 }
