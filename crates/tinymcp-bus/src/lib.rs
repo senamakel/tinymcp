@@ -68,6 +68,7 @@ pub mod names;
 pub mod registry;
 pub mod sanitize;
 pub mod server;
+pub mod storage;
 pub mod supervisor;
 pub mod transport;
 pub mod ui;
@@ -130,6 +131,12 @@ pub use server::{
     DEFAULT_SOURCE_TYPE_PREFIX, RequestContext, RequestHeaders, ResourceSpec, ServerInfo,
     ServerToolSpec, ToolCallError,
 };
+
+pub use storage::{
+    AUDIT_STREAM, CACHE_KEY_SECRET, ENV_SECRET_PREFIX, REGISTRY_CACHE, REGISTRY_INDEX,
+    REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE, storage_needs,
+};
+pub use tinystoragedrivers_bus::{StorageNeeds, StorageNeedsWithExactSecrets};
 
 pub mod processing;
 pub use processing::{

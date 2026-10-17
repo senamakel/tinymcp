@@ -19,6 +19,9 @@ publish = false
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Canonical storage request vocabulary. Keep default features off so this
+# contract crate links neither the storage client nor TinyBus.
+tinystoragedrivers-bus = { workspace = true }
 # Optional: lets a host generate a settings schema for a user interface from
 # these definitions rather than a hand-kept copy. Off by default because a
 # host that only makes calls should not pay for it. Pure Rust, no transport.
