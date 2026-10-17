@@ -33,8 +33,18 @@ def dependency(package_id: str, kind: str | None = None) -> dict:
 
 def fixture() -> dict:
     packages = [
-        {"id": ROOT_ID, "name": "tinymcp-storage-needs-consumer", "version": "0.0.0"},
-        {"id": CONTRACT_ID, "name": "tinymcp-bus", "version": "0.18.7"},
+        {
+            "id": ROOT_ID,
+            "name": "tinymcp-storage-needs-consumer",
+            "version": "0.0.0",
+            "manifest_path": str(guard.CONSUMER_MANIFEST),
+        },
+        {
+            "id": CONTRACT_ID,
+            "name": "tinymcp-bus",
+            "version": "0.18.7",
+            "manifest_path": str(guard.CONTRACT_MANIFEST),
+        },
         {
             "id": TSD_ID,
             "name": "tinystoragedrivers-bus",

@@ -11,6 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONSUMER_MANIFEST = ROOT / "crates/tinymcp-bus/consumer/Cargo.toml"
+CONTRACT_MANIFEST = ROOT / "crates/tinymcp-bus/Cargo.toml"
 TSD_BUS_REV = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
 TSD_BUS_URL = "https://github.com/tinyhumansai/tinystoragedrivers"
 ALLOWED_TSD_BUS = "tinystoragedrivers-bus"
@@ -21,9 +22,16 @@ FORBIDDEN_PACKAGES = {
     "async-executor",
     "async-io",
     "axum",
+    "actix-web",
+    "awc",
+    "attohttpc",
     "diesel",
     "futures-executor",
     "hyper",
+    "isahc",
+    "libsqlite3-sys",
+    "libsqlx-core",
+    "minreq",
     "mongodb",
     "mysql",
     "postgres",
@@ -41,12 +49,14 @@ FORBIDDEN_PACKAGES = {
     "tokio",
     "tokio-stream",
     "tinymcp",
+    "tinystoragedrivers",
     "tinystoragedrivers-busproxy",
     "tinystoragedrivers-client",
     "tinystoragedrivers-core",
     "tinystoragedrivers-secrets",
     "tide",
     "ureq",
+    "surf",
 }
 
 
@@ -114,6 +124,8 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
     names = {package.get("name") for package in packages_reached}
     if ALLOWED_CONTRACT not in names or ALLOWED_TSD_BUS not in names:
         fail("consumer graph is missing tinymcp-bus or canonical TSD bus")
+    if package_by_id[root_id].get("manifest_path") != str(CONSUMER_MANIFEST):
+        fail("dependency guard did not inspect the excluded standalone consumer")
 
     for package_id in reachable - {root_id}:
         package = package_by_id[package_id]
@@ -160,6 +172,11 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
     ]
     if len(contract_packages) != 1:
         fail("consumer did not resolve exactly one tinymcp-bus contract package")
+    if (
+        contract_packages[0].get("source") is not None
+        or contract_packages[0].get("manifest_path") != str(CONTRACT_MANIFEST)
+    ):
+        fail("consumer is not using this checkout's tinymcp-bus contract")
     contract_node = node_by_id[contract_packages[0]["id"]]
     contract_deps = _normal_build_dep_ids(contract_node)
     if tsd_package["id"] not in root_deps or tsd_package["id"] not in contract_deps:
