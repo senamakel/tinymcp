@@ -108,6 +108,15 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_caller_keeps_main_pin_and_routes_reviewed_releases_through_owner(self) -> None:
         workflow = WORKFLOW.read_text()
         self.assertIn(
+            "TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}",
+            workflow,
+        )
+        self.assertIn(
+            "RELEASE_MODE: ${{ github.event_name == 'push' && 'main' || inputs.release_mode }}",
+            workflow,
+        )
+        self.assertIn("REVIEWED_PR: ${{ inputs.reviewed_pr }}", workflow)
+        self.assertIn(
             f"uses: tinyhumansai/.github/.github/workflows/module-release.yml@{MAIN_RELEASE_PIN}",
             workflow,
         )
