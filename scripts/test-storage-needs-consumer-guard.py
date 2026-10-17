@@ -39,7 +39,7 @@ def fixture() -> dict:
             "id": TSD_ID,
             "name": "tinystoragedrivers-bus",
             "version": "1.5.0",
-            "source": TSD_ID.split("#", 1)[0],
+            "source": TSD_ID,
         },
         {
             "id": SERDE_ID,
