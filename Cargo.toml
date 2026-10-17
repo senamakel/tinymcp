@@ -204,3 +204,4 @@ tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
 # the module's `Connection` and the storage transport's are one type.
 [patch."https://github.com/tinyhumansai/tinybus"]
 tinybus = { path = "vendor/tinybus/crates/tinybus" }
+tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
