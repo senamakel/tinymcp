@@ -40,10 +40,20 @@ tenants in one process. The host owns storage; this crate asks for ports.
 | secrets | `mcp_client_env/<server id>` | environment values and the OAuth bundle, one secret |
 | secrets | `mcp_cache_fingerprint_key` | key for tool-cache fingerprints (hex text) |
 
-`storage::grant()` returns this as data (`StorageGrant`) for a host that serves
-storage over the bus: it provisions exactly these collections (with the
-indexes from `storage::collection_specs()`), this stream and these secret
-names, and refuses the rest.
+`tinymcp-bus` declares these resources with the canonical
+`tinystoragedrivers_bus::StorageNeeds` type. The declaration carries each
+collection schema and index, the `mcp_audit` stream prefix, and the
+`mcp_client_env/` and `mcp_cache_fingerprint_key` secret prefixes. It describes
+what the module uses; it does not grant authority by itself. A host selects
+the declaration through its module admission and resource-mapping policy,
+applies its own storage policy, and binds the resulting grant to the
+authenticated caller. TinyMCP does not maintain a parallel `StorageGrant`
+list of the same resources.
+
+The TSD bus contract represents secret access as prefixes. In particular,
+`mcp_cache_fingerprint_key` is declared as a prefix even though TinyMCP
+currently reads and writes only that exact secret name; the host remains
+responsible for deciding how requested prefixes become authority.
 
 ## Behaviour notes
 
