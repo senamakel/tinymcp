@@ -31,3 +31,9 @@ jobs:
           cargo --config "build.target-dir = \"${GITHUB_WORKSPACE}/target\"" test --locked --manifest-path crates/tinymcp-bus/consumer/Cargo.toml
           cargo --config "build.target-dir = \"${GITHUB_WORKSPACE}/target\"" build --locked --manifest-path crates/tinymcp-bus/consumer/Cargo.toml
           python3 scripts/check-storage-needs-consumer.py
+  release-workflow-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exercise the main and reviewed-epic dispatch contract
+        run: python3 scripts/test-release-workflow.py
