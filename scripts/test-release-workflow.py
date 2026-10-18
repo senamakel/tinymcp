@@ -63,7 +63,7 @@ def resolve(tag: str, mode: str, reviewed_pr: str) -> tuple[int, dict[str, str],
 
 
 class ReleaseWorkflowContractTests(unittest.TestCase):
-    def test_legacy_main_path_still_resolves_existing_tags_and_zero_pr(self) -> None:
+    def test_legacy_main_path_resolves_tag_and_zero_pr(self) -> None:
         code, values, _stderr = resolve("v0.19.4", "main", "")
         self.assertEqual(code, 0)
         self.assertEqual(
@@ -98,7 +98,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_invalid_tag_or_mode_fails_before_any_release_output(self) -> None:
         for tag, mode, reviewed_pr in (
-            ("0.19.3", "main", ""),
+            ("0.19.4", "main", ""),
             ("v0.19.4", "other", ""),
         ):
             with self.subTest(tag=tag, mode=mode):
