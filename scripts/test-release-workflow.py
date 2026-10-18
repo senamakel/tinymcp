@@ -91,7 +91,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_reviewed_mode_rejects_missing_zero_and_non_integer_prs(self) -> None:
         for reviewed_pr in ("", "0", "-1", "1.5", "abc"):
             with self.subTest(reviewed_pr=reviewed_pr):
-                code, values, stderr = resolve("v0.19.1", "reviewed-epic", reviewed_pr)
+                code, values, stderr = resolve("v0.19.3", "reviewed-epic", reviewed_pr)
                 self.assertEqual(code, 2)
                 self.assertEqual(values, {})
                 self.assertIn("positive integer", stderr)
@@ -99,7 +99,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_invalid_tag_or_mode_fails_before_any_release_output(self) -> None:
         for tag, mode, reviewed_pr in (
             ("0.19.3", "main", ""),
-            ("v0.19.1", "other", ""),
+            ("v0.19.3", "other", ""),
         ):
             with self.subTest(tag=tag, mode=mode):
                 code, values, _stderr = resolve(tag, mode, reviewed_pr)
