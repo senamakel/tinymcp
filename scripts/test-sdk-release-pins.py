@@ -28,7 +28,7 @@ class SdkReleasePinTests(unittest.TestCase):
             ROOT / "crates/tinymcp-bus/Cargo.toml",
         ):
             with self.subTest(path=path.relative_to(ROOT)):
-                self.assertTrue(manifest(path)["package"]["version"].startswith("workspace"))
+                self.assertEqual(manifest(path)["package"]["version"], {"workspace": True})
 
     def test_module_sdk_dependencies_share_the_published_commit(self) -> None:
         dependencies = manifest(ROOT / "Cargo.toml")["workspace"]["dependencies"]
