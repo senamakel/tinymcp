@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 MAIN_RELEASE_PIN = "4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-REVIEWED_RELEASE_PIN = "1e28317c435a9c714002199e65d18a1067fa5777"
+REVIEWED_RELEASE_PIN = "6ed83b04aab2d8977ec62e966cb914531e534fa4"
 MODULE_CI_PIN = "62c8ae0468f3882b75947d5cba9687e609ce1fed"
 
 
