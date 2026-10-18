@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/release.yml"
 MAIN_RELEASE_PIN = "4adc1080fb495098e7af1aade82ed7e6e3c69bb7"
-REVIEWED_RELEASE_PIN = "70a10f86022c9ceb1cf91b9a76932f8abc1cf68d"
+REVIEWED_RELEASE_PIN = "1e28317c435a9c714002199e65d18a1067fa5777"
 MODULE_CI_PIN = "62c8ae0468f3882b75947d5cba9687e609ce1fed"
 
 
@@ -64,26 +64,26 @@ def resolve(tag: str, mode: str, reviewed_pr: str) -> tuple[int, dict[str, str],
 
 class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_legacy_main_path_still_resolves_existing_tags_and_zero_pr(self) -> None:
-        code, values, _stderr = resolve("v0.19.0", "main", "")
+        code, values, _stderr = resolve("v0.19.1", "main", "")
         self.assertEqual(code, 0)
         self.assertEqual(
             values,
             {
-                "tag": "v0.19.0",
-                "version": "0.19.0",
+                "tag": "v0.19.1",
+                "version": "0.19.1",
                 "release_mode": "main",
                 "reviewed_pr": "0",
             },
         )
 
     def test_reviewed_epic_requires_and_preserves_a_positive_integer_pr(self) -> None:
-        code, values, _stderr = resolve("v0.19.0", "reviewed-epic", "8056")
+        code, values, _stderr = resolve("v0.19.1", "reviewed-epic", "8056")
         self.assertEqual(code, 0)
         self.assertEqual(values["reviewed_pr"], "8056")
         self.assertEqual(values["release_mode"], "reviewed-epic")
 
     def test_main_mode_refuses_a_reviewed_pr_number(self) -> None:
-        code, values, stderr = resolve("v0.19.0", "main", "8056")
+        code, values, stderr = resolve("v0.19.1", "main", "8056")
         self.assertEqual(code, 2)
         self.assertEqual(values, {})
         self.assertIn("only valid in reviewed-epic mode", stderr)
@@ -91,15 +91,15 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_reviewed_mode_rejects_missing_zero_and_non_integer_prs(self) -> None:
         for reviewed_pr in ("", "0", "-1", "1.5", "abc"):
             with self.subTest(reviewed_pr=reviewed_pr):
-                code, values, stderr = resolve("v0.19.0", "reviewed-epic", reviewed_pr)
+                code, values, stderr = resolve("v0.19.1", "reviewed-epic", reviewed_pr)
                 self.assertEqual(code, 2)
                 self.assertEqual(values, {})
                 self.assertIn("positive integer", stderr)
 
     def test_invalid_tag_or_mode_fails_before_any_release_output(self) -> None:
         for tag, mode, reviewed_pr in (
-            ("0.19.0", "main", ""),
-            ("v0.19.0", "other", ""),
+            ("0.19.1", "main", ""),
+            ("v0.19.1", "other", ""),
         ):
             with self.subTest(tag=tag, mode=mode):
                 code, values, _stderr = resolve(tag, mode, reviewed_pr)
