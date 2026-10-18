@@ -6,10 +6,11 @@ specifications, request headers/context and ToolCallError. Existing protocol,
 persisted registry identifiers, declarations and error wire forms remain pinned
 by golden fixtures. Raw remote metadata stays raw in serialized DTOs.
 
-Generic lexical sanitization lives in TinyTools Std at reviewed canonical
-commit 360721b; TinyMCP uses that library with default features disabled. This
-keeps skills and harness metadata independent of MCP loading. The bus has no
-TinyTools, TinyBus, runtime, HTTP or native dependencies, even optionally.
+Generic lexical sanitization lives in TinyTools 0.6 at reviewed canonical
+commit 1ec3468; TinyMCP imports it from `tinytools::sanitize` with default
+features disabled. This keeps skills and harness metadata independent of MCP
+loading. The bus has no TinyTools, TinyBus, runtime, HTTP or native
+dependencies, even optionally.
 
 ## Public Rust API compatibility
 
@@ -28,16 +29,20 @@ TinyMCP extension traits to keep method syntax:
 | ServerToolSpec / ResourceSpec | ServerToolSpecExt / ResourceSpecExt | protocol JSON projection |
 
 normalize_tool_arguments remains available from TinyMCP. Generic sanitizer
-functions remain available from tinymcp::sanitize and tinytools_std::sanitize.
+functions remain available from `tinymcp::sanitize` and
+`tinytools::sanitize`.
 Contract imports of these algorithms must migrate to owner library APIs or
 module calls. This is a necessary pre-1.0 Rust source API break requiring a minor
-package release; the release workflow owns package versioning. Fixed
+package release; the reviewed source commit sets the package version, which the
+release workflow validates. Fixed
 RegistryTool::spec and registry_tool_specs remain in the bus unchanged.
 
 Callers migrating from the previous source API should use
 `tinymcp::normalize_tool_arguments` instead of the bus-root helper,
 `tinymcp::sanitize::{sanitize_for_llm, strip_control_chars,
-strip_instruction_fences, truncate_utf8_safe}` (or TinyTools directly) instead
+strip_instruction_fences, truncate_utf8_safe}` (or
+`tinytools::sanitize::{sanitize_for_llm, strip_control_chars,
+strip_instruction_fences, truncate_utf8_safe}`) instead
 of bus sanitizers, and import `McpRemoteToolExt` / `McpToolResultExt` for the
 display and rendering methods. The DTOs themselves retain their serde wire
 forms; only executable helpers move to the implementation or their owner
