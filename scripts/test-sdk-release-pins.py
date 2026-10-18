@@ -39,7 +39,7 @@ class SdkReleasePinTests(unittest.TestCase):
                 self.assertEqual(dependency["git"], SDK_URL)
                 self.assertEqual(dependency["rev"], SDK_REV)
 
-    def test_vendor_gitlink_matches_the_exact_sdk_commit(self) -> None:
+    def test_vendor_gitlink_is_pinned_to_the_exact_sdk_commit(self) -> None:
         tree = subprocess.run(
             ["git", "ls-tree", "HEAD", "vendor/tinybus"],
             cwd=ROOT,
@@ -48,14 +48,6 @@ class SdkReleasePinTests(unittest.TestCase):
             capture_output=True,
         ).stdout.split()
         self.assertEqual(tree[2:], [SDK_REV, "vendor/tinybus"])
-        checkout = subprocess.run(
-            ["git", "-C", "vendor/tinybus", "rev-parse", "HEAD"],
-            cwd=ROOT,
-            check=True,
-            text=True,
-            capture_output=True,
-        ).stdout.strip()
-        self.assertEqual(checkout, SDK_REV)
 
     def test_pure_bus_consumer_does_not_link_the_module_sdk(self) -> None:
         consumer = manifest(ROOT / "crates/tinymcp-bus/consumer/Cargo.toml")

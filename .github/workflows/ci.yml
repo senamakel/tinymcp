@@ -35,5 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Exercise the main and reviewed-epic dispatch contract
-        run: python3 scripts/test-release-workflow.py
+      - name: Check SDK pins and release dispatch contract
+        run: |
+          python3 scripts/test-sdk-release-pins.py
+          python3 scripts/test-release-workflow.py
