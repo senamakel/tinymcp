@@ -63,27 +63,27 @@ def resolve(tag: str, mode: str, reviewed_pr: str) -> tuple[int, dict[str, str],
 
 
 class ReleaseWorkflowContractTests(unittest.TestCase):
-    def test_legacy_main_path_still_resolves_existing_tags_and_zero_pr(self) -> None:
-        code, values, _stderr = resolve("v0.19.3", "main", "")
+    def test_legacy_main_path_resolves_tag_and_zero_pr(self) -> None:
+        code, values, _stderr = resolve("v0.19.4", "main", "")
         self.assertEqual(code, 0)
         self.assertEqual(
             values,
             {
-                "tag": "v0.19.3",
-                "version": "0.19.3",
+                "tag": "v0.19.4",
+                "version": "0.19.4",
                 "release_mode": "main",
                 "reviewed_pr": "0",
             },
         )
 
     def test_reviewed_epic_requires_and_preserves_a_positive_integer_pr(self) -> None:
-        code, values, _stderr = resolve("v0.19.3", "reviewed-epic", "8056")
+        code, values, _stderr = resolve("v0.19.4", "reviewed-epic", "8056")
         self.assertEqual(code, 0)
         self.assertEqual(values["reviewed_pr"], "8056")
         self.assertEqual(values["release_mode"], "reviewed-epic")
 
     def test_main_mode_refuses_a_reviewed_pr_number(self) -> None:
-        code, values, stderr = resolve("v0.19.3", "main", "8056")
+        code, values, stderr = resolve("v0.19.4", "main", "8056")
         self.assertEqual(code, 2)
         self.assertEqual(values, {})
         self.assertIn("only valid in reviewed-epic mode", stderr)
@@ -91,15 +91,15 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_reviewed_mode_rejects_missing_zero_and_non_integer_prs(self) -> None:
         for reviewed_pr in ("", "0", "-1", "1.5", "abc"):
             with self.subTest(reviewed_pr=reviewed_pr):
-                code, values, stderr = resolve("v0.19.3", "reviewed-epic", reviewed_pr)
+                code, values, stderr = resolve("v0.19.4", "reviewed-epic", reviewed_pr)
                 self.assertEqual(code, 2)
                 self.assertEqual(values, {})
                 self.assertIn("positive integer", stderr)
 
     def test_invalid_tag_or_mode_fails_before_any_release_output(self) -> None:
         for tag, mode, reviewed_pr in (
-            ("0.19.3", "main", ""),
-            ("v0.19.3", "other", ""),
+            ("0.19.4", "main", ""),
+            ("v0.19.4", "other", ""),
         ):
             with self.subTest(tag=tag, mode=mode):
                 code, values, _stderr = resolve(tag, mode, reviewed_pr)
