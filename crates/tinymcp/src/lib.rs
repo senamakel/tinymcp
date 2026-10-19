@@ -133,8 +133,8 @@ pub use tinymcp_bus::{
     McpWriteListQuery, McpWriteRecord, NewMcpWriteRecord, OBJECT_PATH, ProtectedResourceMetadata,
     RegistryConnection, RegistryFreshness, RegistryListResponse, RegistryPagination,
     RegistryServerDetail, RegistryServerSummary, SUPPORTED_PROTOCOL_VERSIONS, SearchCuration,
-    ServerDetail, ServerStatus, StdioSandboxConfig, Transport, config, is_compatible, names,
-    version,
+    ServerDetail, ServerStatus, StdioSandboxConfig, StdioSandboxEnforcement, Transport, config,
+    is_compatible, names, version,
 };
 
 pub use tinymcp_bus::{
