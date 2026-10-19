@@ -89,7 +89,8 @@ pub use auth::{AuthDetection, AuthKind};
 pub use config::{
     ConfiguredToolCallRequest, HttpHeader, McpAuthConfig, McpClientConfig, McpClientIdentityConfig,
     McpProxyConfig, McpRegistryAuthConfig, McpServerConfig, OpenConfiguredRequest,
-    OpenConfiguredResponse, StaticServerSummary, StdioSandboxConfig, TransitionStatus,
+    OpenConfiguredResponse, StaticServerSummary, StdioSandboxConfig, StdioSandboxEnforcement,
+    TransitionStatus,
 };
 pub use config_document::{AppliedServer, ConfigApplyReport, ConfigApplyResponse};
 pub use method::{

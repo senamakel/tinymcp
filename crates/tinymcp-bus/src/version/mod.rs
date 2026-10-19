@@ -40,8 +40,11 @@
 /// segments are now `Blocked` (previously `Web`). 1.26 adds
 /// `McpClientConfig::stdio_sandbox` and `McpServerConfig::operator_trusted`:
 /// a stdio server runs in the host's jail, or unconfined only when the operator
-/// trusts it; with neither it is refused.
-pub const CONTRACT_VERSION: (u32, u32) = (1, 26);
+/// trusts it; with neither it is refused. 1.27 adds
+/// `StdioSandboxConfig::enforcement` (`StdioSandboxEnforcement`), letting the
+/// host choose `Declared` for a backend with partial enforcement; the default
+/// stays `Enforced`.
+pub const CONTRACT_VERSION: (u32, u32) = (1, 27);
 
 /// Returns whether a host holding [`CONTRACT_VERSION`] can bind to a module
 /// reporting `module`.
