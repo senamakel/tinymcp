@@ -59,7 +59,12 @@ impl BusProvider {
         let scope = module_scope_label();
         let transport = BusTransport::connect_bound(connection, descriptor)
             .await
-            .map_err(|source| Error::store("connecting to the host storage lease", source))?;
+            .map_err(|source| {
+                Error::store(
+                    "connecting to the host storage lease",
+                    tinystoragedrivers_core::StorageError::unavailable(source.to_string()),
+                )
+            })?;
         let storage = BusStorage::connect(Arc::new(transport), scope.clone())
             .await
             .map_err(|source| Error::store("opening the host-bound scope", source))?;
