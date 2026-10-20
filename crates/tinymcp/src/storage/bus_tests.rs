@@ -139,3 +139,22 @@ async fn a_provider_over_ready_ports_hands_out_clones_of_them() {
     assert!(!again.has_state().unwrap());
     assert!(format!("{provider:?}").contains("BusProvider"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_bound_provider_rejects_a_descriptor_with_an_invalid_lease_root() {
+    let bus = MemoryBus::new();
+    Broker::new().spawn(bus.clone());
+    let connection = Connection::connect(bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    let descriptor = tinystoragedrivers_busproxy::StorageDescriptor {
+        service_peer: ":1.42".to_owned(),
+        registration_id: 1,
+        object_root: "/org/tinystoragedrivers/Storage".to_owned(),
+    };
+
+    let error = BusProvider::connect_bound(connection, descriptor)
+        .await
+        .expect_err("a fixed storage root is not a lease route");
+    assert!(error.to_string().contains("connecting to the host storage lease"));
+}
