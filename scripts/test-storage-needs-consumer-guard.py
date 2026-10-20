@@ -21,8 +21,8 @@ ROOT_ID = "path+tinymcp-storage-needs-consumer#0.0.0"
 CONTRACT_ID = "path+tinymcp-bus#0.20.0"
 TSD_ID = (
     "git+https://github.com/tinyhumansai/tinystoragedrivers?rev="
-    "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4#"
-    "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4"
+    "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b#"
+    "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
 )
 SERDE_ID = "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.0"
 

@@ -12,7 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 CONSUMER_MANIFEST = ROOT / "crates/tinymcp-bus/consumer/Cargo.toml"
 CONTRACT_MANIFEST = ROOT / "crates/tinymcp-bus/Cargo.toml"
-TSD_BUS_REV = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4"
+TSD_BUS_REV = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b"
 TSD_BUS_URL = "https://github.com/tinyhumansai/tinystoragedrivers"
 ALLOWED_TSD_BUS = "tinystoragedrivers-bus"
 ALLOWED_CONTRACT = "tinymcp-bus"
