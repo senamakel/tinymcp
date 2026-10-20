@@ -123,13 +123,13 @@ pub fn select_source(view: &UiCallView) -> Option<UiSource> {
     let metas = [view.tool_meta.as_ref(), view.result_meta.as_ref()];
     for (path, flavor) in TEMPLATE_KEYS {
         for meta in metas {
-            if let Some(uri) = meta_str(meta, path).map(str::trim) {
-                if is_ui_uri(uri) {
-                    return Some(UiSource::Uri {
-                        uri: uri.to_string(),
-                        flavor,
-                    });
-                }
+            if let Some(uri) = meta_str(meta, path).map(str::trim)
+                && is_ui_uri(uri)
+            {
+                return Some(UiSource::Uri {
+                    uri: uri.to_string(),
+                    flavor,
+                });
             }
         }
     }
@@ -394,10 +394,10 @@ pub fn https_origins(value: Option<&Value>) -> Vec<String> {
         if out.len() >= MAX_CSP_DOMAINS {
             break;
         }
-        if let Some(origin) = https_origin(item) {
-            if !out.contains(&origin) {
-                out.push(origin);
-            }
+        if let Some(origin) = https_origin(item)
+            && !out.contains(&origin)
+        {
+            out.push(origin);
         }
     }
     out

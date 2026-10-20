@@ -146,14 +146,12 @@ fn url_spans(haystack: &str) -> Vec<&str> {
             .chars()
             .next_back()
             .is_none_or(|c| !is_word(c));
-        if at_boundary {
-            if let Some(len) = url_len(&haystack[at..]) {
-                spans.push(&haystack[at..at + len]);
-                at += len;
-                continue;
-            }
+        if at_boundary && let Some(len) = url_len(&haystack[at..]) {
+            spans.push(&haystack[at..at + len]);
+            at += len;
+        } else {
+            at += next.len_utf8();
         }
-        at += next.len_utf8();
     }
     spans
 }
