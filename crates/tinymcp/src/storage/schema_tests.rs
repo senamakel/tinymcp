@@ -26,7 +26,7 @@ fn the_schema_composes_under_the_mcp_owner() {
 #[test]
 fn every_item_is_module_scoped_and_named_under_the_owner() {
     let schema = storage_schema();
-    assert!(!schema.items.is_empty());
+    assert_ne!(schema.items.len(), 0);
     for item in &schema.items {
         assert_eq!(item.scope(), ScopeClass::Module, "{}", item.name());
         assert!(item.name().starts_with("mcp."), "{}", item.name());
