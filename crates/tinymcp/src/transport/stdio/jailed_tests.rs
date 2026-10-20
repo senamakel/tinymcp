@@ -119,23 +119,10 @@ impl JailBus for FakeBox {
                     "stderr_closed": closed, "status": {"running": !closed}
                 }));
             }
-            if member == names::CLOSE_STDIN {
-                if let Some(gate) = &close_stdin_gate {
-                    gate.enter_and_wait();
-                }
-            }
+            gate_before_fakebox_record(close_stdin_gate.as_deref(), member);
             let mut state = self.state.lock().unwrap();
             state.calls.push((member, args.clone()));
-            if member == names::CLOSE {
-                if let Some(gate) = &close_stdin_gate {
-                    gate.close_recorded();
-                }
-            }
-            if member == names::CLOSE_STDIN {
-                if let Some(gate) = &close_stdin_gate {
-                    gate.stdin_close_recorded();
-                }
-            }
+            gate_after_fakebox_record(close_stdin_gate.as_deref(), member);
             if confidential {
                 state.confidential.push(member);
             }
@@ -206,6 +193,21 @@ impl JailBus for FakeBox {
                 _ => Ok(Value::Null),
             }
         })
+    }
+}
+
+fn gate_before_fakebox_record(gate: Option<&CloseStdinGate>, member: &'static str) {
+    if member == names::CLOSE_STDIN && let Some(gate) = gate {
+        gate.enter_and_wait();
+    }
+}
+
+fn gate_after_fakebox_record(gate: Option<&CloseStdinGate>, member: &'static str) {
+    if member == names::CLOSE && let Some(gate) = gate {
+        gate.close_recorded();
+    }
+    if member == names::CLOSE_STDIN && let Some(gate) = gate {
+        gate.stdin_close_recorded();
     }
 }
 
