@@ -295,7 +295,7 @@ fn legacy_rows_without_rekey_data_are_dropped() {
             "record_json": "not-json"
         }),
     );
-    let Value::Object(body) = invalid_index_record.body else {
+    let Value::Object(body) = invalid_index_record.body.clone() else {
         unreachable!("fixture is a JSON object");
     };
     assert_eq!(
