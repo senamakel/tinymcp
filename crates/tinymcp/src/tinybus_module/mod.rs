@@ -50,6 +50,13 @@ use crate::storage::{TinyMcpMigrationHandler, storage_schema_declaration};
 /// is down delays nothing. See [`maintenance`].
 pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyBusResult<()> {
     if let Some(descriptor) = config.storage_descriptor.clone() {
+        let provider = crate::storage::BusProvider::connect_bound(connection.clone(), descriptor)
+            .await
+            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?;
+        return setup_with_provider(connection, config, Arc::new(provider)).await;
+    }
+
+    if let Some(descriptor) = config.storage_descriptor.clone() {
         let provider = Arc::new(
             crate::storage::BusProvider::connect_bound(connection.clone(), descriptor).await?,
         );
