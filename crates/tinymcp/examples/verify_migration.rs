@@ -298,9 +298,20 @@ async fn verify_normal_storage_after_migration(
         &staged,
         json!({"data_dir":data_dir.path().to_string_lossy()}),
     )?;
-    modules
+    if let Err(error) = modules
         .ensure_ready(info.manifest.bus_name.as_str())
-        .await?;
+        .await
+    {
+        let state = modules
+            .list()
+            .into_iter()
+            .find(|module| module.manifest.bus_name == info.manifest.bus_name)
+            .map(|module| module.state);
+        return Err(std::io::Error::other(format!(
+            "storage-bound TinyMCP setup failed: {error}; state: {state:?}"
+        ))
+        .into());
+    }
     let module_peer = controller
         .name_owner(names::INTERFACE)
         .await?
