@@ -402,7 +402,10 @@ async fn write_chunk(
     atomic: bool,
 ) -> tinystoragedrivers_core::Result<()> {
     if atomic {
-        return documents.atomic_batch(chunk).await.map(|_| ());
+        return documents
+            .atomic_batch_with(chunk, write_options())
+            .await
+            .map(|_| ());
     }
     for op in chunk {
         if let WriteOp::Put {

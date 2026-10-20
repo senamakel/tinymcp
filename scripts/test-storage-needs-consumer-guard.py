@@ -21,8 +21,8 @@ ROOT_ID = "path+tinymcp-storage-needs-consumer#0.0.0"
 CONTRACT_ID = "path+tinymcp-bus#0.20.0"
 TSD_ID = (
     "git+https://github.com/tinyhumansai/tinystoragedrivers?rev="
-    "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8#"
-    "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
+    "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#"
+    "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
 )
 SERDE_ID = "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.0"
 
@@ -48,7 +48,7 @@ def fixture() -> dict:
         {
             "id": TSD_ID,
             "name": "tinystoragedrivers-bus",
-            "version": "1.5.0",
+            "version": "1.8.0",
             "source": TSD_ID,
         },
         {
@@ -118,8 +118,8 @@ class StorageNeedsConsumerGuardTests(unittest.TestCase):
     def test_rejects_a_tag_or_other_source_even_when_the_version_matches(self) -> None:
         metadata = copy.deepcopy(fixture())
         tsd_package = next(package for package in metadata["packages"] if package["id"] == TSD_ID)
-        tsd_package["source"] = "git+https://github.com/tinyhumansai/tinystoragedrivers?tag=v1.5.0#commit"
-        with self.assertRaisesRegex(RuntimeError, "canonical 1.5 revision"):
+        tsd_package["source"] = "git+https://github.com/tinyhumansai/tinystoragedrivers?tag=v1.8.0#commit"
+        with self.assertRaisesRegex(RuntimeError, "canonical v1.8.0 source revision"):
             guard.validate_metadata(metadata)
 
     def test_ignores_dev_only_edges_because_the_guard_is_normal_and_build(self) -> None:

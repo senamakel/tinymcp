@@ -15,7 +15,8 @@ tenants in one process. The host owns storage; this crate asks for ports.
 
 - No database client. The crate depends on `tinystoragedrivers-core` (the
   `DocumentStore` and `StreamStore` ports and the `Blocking` bridge) and
-  `tinystoragedrivers-secrets` (the `SecretStore` port), by git tag, and on no
+  `tinystoragedrivers-secrets` (the `SecretStore` port), from the same pinned
+  source revision, and on no
   driver.
 - `Store` and `AuditStore` open over `StoragePorts`
   (`documents`, `streams`, `secrets`). Their API stays synchronous; each call
@@ -107,7 +108,9 @@ tests keep secrets in a local store.
 ## Schema v2
 
 The module's declarations are `tinymcp::storage::storage_schema()` (owner `mcp`,
-scope class Module, tinystoragedrivers v1.0.0); the storage grant is generated
+scope class Module, tinystoragedrivers v1.8.0 source commit
+`595723e1b1cabeb3d36f0c5b6ff2e11b458e7558`, released from the `senamakel` fork);
+the storage grant is generated
 from it. v1 names become `mcp.*`, `*_at` times become `*_ms` fields, ids are
 `Key::of` keys, and JSON kept inside strings (`body_json`, `record_json`)
 becomes an object body. Steps `servers_v2`, `server_names_v2`,
