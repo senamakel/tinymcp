@@ -298,6 +298,30 @@ impl Drop for CloseStdinGateObserver {
     }
 }
 
+fn wait_for_jail_cleanup(
+    fake: &FakeBox,
+    deadline: std::time::Instant,
+) -> Vec<&'static str> {
+    loop {
+        let members = fake.members();
+        if let Some(close) = members.iter().position(|member| *member == names::CLOSE) {
+            let Some(kill) = members
+                .iter()
+                .position(|member| *member == names::KILL_STDIO)
+            else {
+                panic!("cleanup recorded Close without KillStdio: {members:?}");
+            };
+            assert!(kill < close, "cleanup calls are out of order: {members:?}");
+            return members;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "cleanup did not record Close before the deadline: {members:?}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 #[path = "jailed_tests/cleanup_discriminator_tests.rs"]
 mod cleanup_discriminator_tests;
 
@@ -760,11 +784,8 @@ fn dropping_a_handle_with_no_runtime_still_releases_the_server() {
     // Dropped on a plain thread: there is no current runtime to spawn on.
     std::thread::spawn(move || drop(process)).join().unwrap();
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while fake.members().last() != Some(&names::CLOSE) {
-        assert!(std::time::Instant::now() < deadline, "cleanup never ran");
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    assert!(fake.members().contains(&names::KILL_STDIO));
+    let members = wait_for_jail_cleanup(&fake, deadline);
+    assert!(members.contains(&names::KILL_STDIO));
 }
 
 #[tokio::test]

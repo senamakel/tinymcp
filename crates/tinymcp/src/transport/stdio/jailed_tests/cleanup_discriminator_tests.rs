@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_late_close_stdin_makes_the_legacy_last_call_predicate_red() {
+fn a_delayed_stdin_close_does_not_hide_jail_cleanup() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -53,30 +53,19 @@ fn a_late_close_stdin_makes_the_legacy_last_call_predicate_red() {
         fake.members()
     );
 
-    let members = fake.members();
-    let kill = members
-        .iter()
-        .position(|member| *member == names::KILL_STDIO)
-        .expect("the real drop cleanup recorded KillStdio");
+    let members = wait_for_jail_cleanup(&fake, deadline);
     let close = members
         .iter()
         .position(|member| *member == names::CLOSE)
-        .expect("the real drop cleanup recorded Close");
+        .expect("the shared cleanup wait observed Close");
     let close_stdin = members
         .iter()
         .rposition(|member| *member == names::CLOSE_STDIN)
         .expect("the gated pump recorded CloseStdin after release");
-    assert!(kill < close, "cleanup calls are out of order: {members:?}");
     assert!(
         close < close_stdin,
         "the gated stdin call was not recorded late: {members:?}"
     );
     assert_eq!(members.last(), Some(&names::CLOSE_STDIN));
-
-    // Intentional controlled RED: retain the old timeout predicate for the
-    // first runtime capture, after proving KillStdio and Close both occurred.
-    assert!(
-        members.last() == Some(&names::CLOSE),
-        "legacy last-call predicate failed despite successful cleanup: {members:?}"
-    );
+    assert_ne!(members.last(), Some(&names::CLOSE));
 }
