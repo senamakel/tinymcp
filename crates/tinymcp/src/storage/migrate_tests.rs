@@ -376,7 +376,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
     };
     let cases = [
         (
-            super::schema::SERVERS_V2_OPERATION,
+            crate::storage::schema::SERVERS_V2_OPERATION,
             "srv-1",
             v1_server(),
             SERVERS,
@@ -384,7 +384,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
             "installed_ms",
         ),
         (
-            super::schema::SERVER_NAMES_V2_OPERATION,
+            crate::storage::schema::SERVER_NAMES_V2_OPERATION,
             "old-claim",
             json!({"qualified_name":"@acme/files", "server_id":"srv-1", "claimed_at":5000}),
             SERVER_NAMES,
@@ -392,7 +392,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
             "claimed_ms",
         ),
         (
-            super::schema::REGISTRY_CACHE_V2_OPERATION,
+            crate::storage::schema::REGISTRY_CACHE_V2_OPERATION,
             "digest-1",
             json!({"cache_key":"official:search", "body_json":"{\"servers\":[]}", "cached_at":9000}),
             REGISTRY_CACHE,
@@ -400,7 +400,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
             "cached_ms",
         ),
         (
-            super::schema::TOOL_CACHE_V2_OPERATION,
+            crate::storage::schema::TOOL_CACHE_V2_OPERATION,
             "digest-2",
             json!({"server_key":"static:docs", "tools":[], "cached_at":7000}),
             TOOL_CACHE,
@@ -408,7 +408,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
             "cached_ms",
         ),
         (
-            super::schema::REGISTRY_INDEX_V2_OPERATION,
+            crate::storage::schema::REGISTRY_INDEX_V2_OPERATION,
             "legacy-index",
             json!({"source":"official", "qualified_name":"@acme/files", "record_json":"{}", "synced_at":8000}),
             REGISTRY_INDEX,
@@ -416,7 +416,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
             "synced_ms",
         ),
         (
-            super::schema::REGISTRY_INDEX_STATE_V2_OPERATION,
+            crate::storage::schema::REGISTRY_INDEX_STATE_V2_OPERATION,
             "legacy-state",
             json!({"source":"official", "started_at":1000, "synced_at":2000}),
             REGISTRY_INDEX_STATE,
@@ -429,7 +429,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
         let reply = super::TinyMcpMigrationHandler.transform(MigrationPayload::Documents(
             tinystoragedrivers_core::schema::DocumentsTransformRequest {
                 operation: operation.to_owned(),
-                version: super::schema::MIGRATION_TRANSFORM_VERSION,
+                version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
                 records: vec![SourceRecord {
                     id: id.to_owned(),
                     body,
@@ -462,12 +462,12 @@ fn the_module_handler_reuses_the_audit_stream_name_transform() {
     ] {
         let reply = super::TinyMcpMigrationHandler.transform(MigrationPayload::StreamPlan(
             tinystoragedrivers_core::schema::StreamPlanRequest {
-                operation: super::schema::AUDIT_V2_OPERATION.to_owned(),
-                version: super::schema::MIGRATION_TRANSFORM_VERSION,
+                operation: crate::storage::schema::AUDIT_V2_OPERATION.to_owned(),
+                version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
                 source: source.to_owned(),
             },
         ));
-        let MigrationPayloadReply::StreamPlan(Ok(plan)) = reply else {
+        let MigrationPayloadReply::StreamPlan(Ok(Some(plan))) = reply else {
             panic!("the audit transform returns its stream target");
         };
         assert_eq!(plan.target, target);
