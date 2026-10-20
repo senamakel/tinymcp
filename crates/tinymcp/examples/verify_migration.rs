@@ -111,9 +111,20 @@ async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
     let outsider = connect_peer(&broker, false).await?;
     let module_host = ModuleHost::new(broker);
     let info = module_host.load_file(&staged)?;
-    module_host
+    if let Err(error) = module_host
         .ensure_ready(info.manifest.bus_name.as_str())
-        .await?;
+        .await
+    {
+        let state = module_host
+            .list()
+            .into_iter()
+            .find(|module| module.manifest.bus_name == info.manifest.bus_name)
+            .map(|module| module.state);
+        return Err(std::io::Error::other(format!(
+            "selected-controller TinyMCP setup failed: {error}; state: {state:?}"
+        ))
+        .into());
+    }
     let module_peer = controller
         .name_owner(names::INTERFACE)
         .await?

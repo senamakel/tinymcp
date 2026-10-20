@@ -2855,15 +2855,15 @@ name = "tinybus"
 version = "0.1.2"
 
 [[patch.unused]]
+name = "tinybus-macros"
+version = "0.1.2"
+
+[[patch.unused]]
 name = "tinybus-module"
 version = "0.1.2"
 
 [[patch.unused]]
 name = "tinybus"
-version = "0.1.2"
-
-[[patch.unused]]
-name = "tinybus-macros"
 version = "0.1.2"
 
 [[patch.unused]]
