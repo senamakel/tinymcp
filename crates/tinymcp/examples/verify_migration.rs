@@ -406,7 +406,7 @@ async fn verify_normal_storage_after_migration(
         names::INTERFACE,
     )?;
     verify_host_backed_root(fixture, &proxy).await?;
-    verify_opened_directory(&fixture.controller, &proxy).await?;
+    verify_opened_directory(&fixture.controller, &fixture.module_peer, &proxy).await?;
     verify_bad_descriptors_leave_current_service_live(fixture, &proxy, &registration).await?;
     verify_stateless_root_keeps_bound_directory_provider(fixture, descriptor).await
 }
@@ -433,6 +433,7 @@ async fn verify_host_backed_root(
 
 async fn verify_opened_directory(
     controller: &Connection,
+    module_peer: &BusName,
     proxy: &tinybus::Proxy,
 ) -> VerifyResult<()> {
     let child_dir = tempfile::tempdir()?;
@@ -442,7 +443,11 @@ async fn verify_opened_directory(
             (child_dir.path().to_string_lossy().to_string(),),
         )
         .await?;
-    let child = controller.proxy(child_path.as_str(), names::OBJECT_PATH, names::INTERFACE)?;
+    let child = controller.proxy(
+        module_peer.as_str(),
+        child_path.as_str(),
+        names::INTERFACE,
+    )?;
     let child_installed: Vec<InstalledServer> =
         child.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(child_installed.len(), 1);
