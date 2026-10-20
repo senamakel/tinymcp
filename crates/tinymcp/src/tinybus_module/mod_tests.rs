@@ -3307,6 +3307,6 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
     let lease = lease_rx.await.unwrap();
     host.shutdown(Duration::from_secs(2)).await;
     drop(lease);
-    registration.shutdown().await;
+    registration.shutdown().await.unwrap();
     broker_task.abort();
 }
