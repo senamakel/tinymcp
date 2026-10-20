@@ -18,7 +18,7 @@ exclude = ["vendor", "worktrees", "crates/tinymcp-bus/consumer"]
 # true`, so the version the release workflow bumps is written in exactly one
 # place and every crate moves together.
 [workspace.package]
-version = "0.19.4"
+version = "0.20.0"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-only"
@@ -32,8 +32,10 @@ repository = "https://github.com/tinyhumansai/tinymcp"
 # Nothing in this workspace is published, so the path is the whole address.
 tinymcp-bus = { path = "crates/tinymcp-bus" }
 # Canonical storage request types for this crate's contract, with client/TinyBus
-# defaults disabled: tinymcp-bus carries declarations only, not transport.
-tinystoragedrivers-bus = { version = "1.5", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8", default-features = false }
+# defaults disabled: tinymcp-bus carries declarations only, not transport. Pin
+# the released v1.8.0 fork source by immutable commit; the canonical URL keeps
+# this package identity unified with hosts and the other TSD crates.
+tinystoragedrivers-bus = { version = "1.8", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558", default-features = false }
 # The TinyBox bus contract, used by the jailed stdio launcher to start MCP
 # servers inside TinyBox's native jail. Contract types only: the module reaches
 # TinyBox through the bus and never links its implementation.
@@ -66,10 +68,9 @@ schemars = { version = "1", default-features = false, features = ["derive"] }
 # rather than a path on purpose: a host that already links tinytools through
 # another checkout redirects this one with a `[patch]` entry, so both resolve
 # to one package and `tinytools::ToolResult` stays one type. A second path
-# dependency could not be unified that way. Pin the reviewed canonical TinyTools
-# revision that provides shared lexical helpers; downstream pins migrate separately.
-tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "360721bc3c7a26221b61f6629f5f0415cfccb568", default-features = false }
-tinytools-std = { git = "https://github.com/tinyhumansai/tinytools", rev = "360721bc3c7a26221b61f6629f5f0415cfccb568", default-features = false }
+# dependency could not be unified that way. Pin the reviewed TinyTools 0.6
+# source head, which exposes lexical helpers on tinytools itself.
+tinytools = { git = "https://github.com/tinyhumansai/tinytools", rev = "1ec3468f6602b69b955a0e94105ed63abb5aa98c", default-features = false }
 # `#[async_trait]` on the tool adapter and the invoker trait, matching how
 # `tinytools::Tool` itself is declared.
 async-trait = "0.1"
@@ -116,18 +117,18 @@ futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 # The storage ports (documents, streams) the installed-server store and the audit
 # log are written against, and the `Blocking` bridge that lets the synchronous
-# store call them. A git tag, like every other tinystoragedrivers consumer, so a
-# host that vendors the repository once redirects it with a `[patch]`. This
-# crate links no database: the host picks the backend.
-tinystoragedrivers-core = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.11.0", features = ["blocking"] }
+# store call them. Match every TSD crate to released v1.8.0 source commit
+# 595723e1b1cabeb3d36f0c5b6ff2e11b458e7558. This crate links no database: the
+# host picks the backend.
+tinystoragedrivers-core = { version = "1.8", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558", features = ["blocking"] }
 # The `SecretStore` port: server environment values and OAuth bundles are kept
-# there, never in a document. Same tag as the core.
-tinystoragedrivers-secrets = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.11.0" }
+# there, never in a document. Same source revision as the core.
+tinystoragedrivers-secrets = { version = "1.8", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558" }
 # The module-side storage bus: `connect_storage` over the module's TinyBus
 # connection, giving the same port traits the host serves. Used only by the
 # `module` feature (a cdylib reaches storage through the host, never a file).
-tinystoragedrivers-busproxy = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.11.0" }
-tinystoragedrivers-client = { git = "https://github.com/tinyhumansai/tinystoragedrivers", tag = "v0.11.0" }
+tinystoragedrivers-busproxy = { version = "1.8", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558" }
+tinystoragedrivers-client = { version = "1.8", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558" }
 # Locating a user's home directory, to find the version-manager shim
 # directories a desktop launch's stripped PATH leaves out.
 dirs = "7"

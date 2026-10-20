@@ -12,7 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 CONSUMER_MANIFEST = ROOT / "crates/tinymcp-bus/consumer/Cargo.toml"
 CONTRACT_MANIFEST = ROOT / "crates/tinymcp-bus/Cargo.toml"
-TSD_BUS_REV = "c9ea6ff1615b77b55d7269403af5fd11bedc9ce8"
+TSD_BUS_REV = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
 TSD_BUS_URL = "https://github.com/tinyhumansai/tinystoragedrivers"
 ALLOWED_TSD_BUS = "tinystoragedrivers-bus"
 ALLOWED_CONTRACT = "tinymcp-bus"
@@ -153,9 +153,9 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
         or not source.startswith(f"git+{TSD_BUS_URL}?")
         or f"rev={TSD_BUS_REV}" not in source
         or not source.endswith(f"#{TSD_BUS_REV}")
-        or not str(tsd_package.get("version", "")).startswith("1.5.")
+        or not str(tsd_package.get("version", "")).startswith("1.8.")
     ):
-        fail("TSD bus did not resolve from the canonical 1.5 revision")
+        fail("TSD bus did not resolve from the pinned v1.8.0 source revision")
 
     tsd_node = node_by_id[tsd_package["id"]]
     features = tsd_node.get("features")
