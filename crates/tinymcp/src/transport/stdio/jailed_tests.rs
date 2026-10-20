@@ -56,6 +56,7 @@ struct Behavior {
 struct FakeBox {
     state: Mutex<State>,
     wake: tokio::sync::Notify,
+    close_stdin_gate: Mutex<Option<Arc<CloseStdinGate>>>,
 }
 
 impl FakeBox {
@@ -63,6 +64,11 @@ impl FakeBox {
         let fake = Self::default();
         fake.state.lock().unwrap().behavior.respond = true;
         Arc::new(fake)
+    }
+    fn serving_with_close_stdin_gate(gate: Arc<CloseStdinGate>) -> Arc<Self> {
+        let fake = Self::serving();
+        *fake.close_stdin_gate.lock().unwrap() = Some(gate);
+        fake
     }
     fn members(&self) -> Vec<&'static str> {
         self.state
@@ -92,6 +98,7 @@ impl JailBus for FakeBox {
         args: Value,
         confidential: bool,
     ) -> BoxFuture<'_, Result<Value, JailBusError>> {
+        let close_stdin_gate = self.close_stdin_gate.lock().unwrap().clone();
         Box::pin(async move {
             // Positional array in, as the bus delivers it; the fake works on
             // the single argument.
@@ -112,8 +119,23 @@ impl JailBus for FakeBox {
                     "stderr_closed": closed, "status": {"running": !closed}
                 }));
             }
+            if member == names::CLOSE_STDIN {
+                if let Some(gate) = &close_stdin_gate {
+                    gate.enter_and_wait();
+                }
+            }
             let mut state = self.state.lock().unwrap();
             state.calls.push((member, args.clone()));
+            if member == names::CLOSE {
+                if let Some(gate) = &close_stdin_gate {
+                    gate.close_recorded();
+                }
+            }
+            if member == names::CLOSE_STDIN {
+                if let Some(gate) = &close_stdin_gate {
+                    gate.stdin_close_recorded();
+                }
+            }
             if confidential {
                 state.confidential.push(member);
             }
@@ -186,6 +208,84 @@ impl JailBus for FakeBox {
         })
     }
 }
+
+#[derive(Debug)]
+struct CloseStdinGate {
+    entered: std::sync::mpsc::SyncSender<()>,
+    allow_record: Mutex<std::sync::mpsc::Receiver<()>>,
+    close_recorded: std::sync::mpsc::SyncSender<()>,
+    stdin_recorded: std::sync::mpsc::SyncSender<()>,
+    deadline: Mutex<Option<std::time::Instant>>,
+}
+
+impl CloseStdinGate {
+    fn new() -> (Arc<Self>, CloseStdinGateObserver) {
+        let (entered, entered_rx) = std::sync::mpsc::sync_channel(1);
+        let (allow_record, allow_record_rx) = std::sync::mpsc::sync_channel(1);
+        let (close_recorded, close_recorded_rx) = std::sync::mpsc::sync_channel(1);
+        let (stdin_recorded, stdin_recorded_rx) = std::sync::mpsc::sync_channel(1);
+        (
+            Arc::new(Self {
+                entered,
+                allow_record: Mutex::new(allow_record_rx),
+                close_recorded,
+                stdin_recorded,
+                deadline: Mutex::new(None),
+            }),
+            CloseStdinGateObserver {
+                entered: entered_rx,
+                allow_record,
+                close_recorded: close_recorded_rx,
+                stdin_recorded: stdin_recorded_rx,
+            },
+        )
+    }
+
+    fn set_deadline(&self, deadline: std::time::Instant) {
+        *self.deadline.lock().unwrap() = Some(deadline);
+    }
+
+    fn remaining(&self) -> Duration {
+        self.deadline
+            .lock()
+            .unwrap()
+            .map(|deadline| deadline.saturating_duration_since(std::time::Instant::now()))
+            .unwrap_or_default()
+    }
+
+    fn enter_and_wait(&self) {
+        let _ = self.entered.send(());
+        let _ = self
+            .allow_record
+            .lock()
+            .unwrap()
+            .recv_timeout(self.remaining());
+    }
+
+    fn close_recorded(&self) {
+        let _ = self.close_recorded.try_send(());
+    }
+
+    fn stdin_close_recorded(&self) {
+        let _ = self.stdin_recorded.try_send(());
+    }
+}
+
+struct CloseStdinGateObserver {
+    entered: std::sync::mpsc::Receiver<()>,
+    allow_record: std::sync::mpsc::SyncSender<()>,
+    close_recorded: std::sync::mpsc::Receiver<()>,
+    stdin_recorded: std::sync::mpsc::Receiver<()>,
+}
+
+impl Drop for CloseStdinGateObserver {
+    fn drop(&mut self) {
+        let _ = self.allow_record.try_send(());
+    }
+}
+
+#[path = "jailed_tests/cleanup_discriminator_tests.rs"]
+mod cleanup_discriminator_tests;
 
 fn sandbox() -> StdioSandboxConfig {
     StdioSandboxConfig {
