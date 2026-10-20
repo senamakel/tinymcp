@@ -53,13 +53,16 @@ fn collection_specs_preserve_the_contract_indexes_and_options() {
             assert_eq!(actual.fields, declared.fields);
             assert_eq!(actual.unique, declared.unique);
         }
+        assert_eq!(actual.ttl_field.as_deref(), declared.ttl_field.as_deref());
         assert_eq!(
-            actual.ttl_field.as_deref(),
-            declared.ttl_field.as_deref()
-        );
-        assert_eq!(
-            actual.search.as_ref().map(|search| search.fields.as_slice()),
-            declared.search.as_ref().map(|search| search.fields.as_slice())
+            actual
+                .search
+                .as_ref()
+                .map(|search| search.fields.as_slice()),
+            declared
+                .search
+                .as_ref()
+                .map(|search| search.fields.as_slice())
         );
     }
 }
@@ -84,11 +87,15 @@ fn secret_grants_keep_prefix_and_exact_name_boundaries() {
     assert_eq!(grant.secrets, declared_secrets);
     assert!(grant.secrets.contains(&format!("{ENV_SECRET_PREFIX}*")));
     assert!(grant.secrets.contains(&CACHE_KEY_SECRET.to_owned()));
-    assert!(!grant
-        .secrets
-        .contains(&format!("{ENV_SECRET_PREFIX}unlisted")));
+    assert!(
+        !grant
+            .secrets
+            .contains(&format!("{ENV_SECRET_PREFIX}unlisted"))
+    );
     assert!(!grant.secrets.contains(&"mcp_unrequested_secret".to_owned()));
-    assert!(!grant
-        .secrets
-        .contains(&format!("{CACHE_KEY_SECRET}_suffix")));
+    assert!(
+        !grant
+            .secrets
+            .contains(&format!("{CACHE_KEY_SECRET}_suffix"))
+    );
 }
