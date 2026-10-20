@@ -12,12 +12,13 @@
 //! ```
 
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tinybus::Connection;
 use tinybus::broker::Broker;
 use tinybus::module::ModuleHost;
-use tinybus::transport::memory::MemoryBus;
+use tinybus::transport::memory::{MemoryBus, MemoryTransport};
 use tinymcp::{InstalledServer, names};
 
 /// How long to wait for the module to claim its name.
@@ -28,7 +29,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (release_url, archive, sha256) = arguments()?;
 
     let bus = MemoryBus::new();
-    let broker = Broker::new();
+    let broker = Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker.attach_module_controller(Arc::new(broker_transport))?;
+    let controller = Connection::connect(Box::new(controller_transport)).await?;
     let broker_task = broker.spawn(bus.clone());
 
     let module_host = ModuleHost::new(broker);
@@ -40,6 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(&sha256),
         serde_json::Value::default(),
     )?;
+    module_host
+        .ensure_ready(info.manifest.bus_name.as_str())
+        .await?;
 
     if info.name != env!("CARGO_PKG_NAME") {
         return Err(io::Error::other(format!(
@@ -50,11 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
-    let client = Connection::connect(bus.connect().await?).await?;
-
     tokio::time::timeout(CLAIM_TIMEOUT, async {
         loop {
-            let claimed = client.list_names().await?;
+            let claimed = controller.list_names().await?;
             if claimed.iter().any(|name| name.as_str() == names::INTERFACE) {
                 return tinybus::Result::Ok(());
             }
@@ -63,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     })
     .await??;
 
-    let proxy = client.proxy(names::INTERFACE, names::OBJECT_PATH, names::INTERFACE)?;
+    let proxy = controller.proxy(names::INTERFACE, names::OBJECT_PATH, names::INTERFACE)?;
     let installed: Vec<InstalledServer> = proxy.call(names::methods::INSTALLED_LIST, ()).await?;
 
     if !installed.is_empty() {
