@@ -24,7 +24,7 @@ use tinystoragedrivers_core::{
     WriteOptions,
     schema::{MigrateOptions, Registry, delivery::MigrationDeliveryClient},
 };
-use tinystoragedrivers_secrets::{MemorySecrets, SecretStore};
+use tinystoragedrivers_secrets::MemorySecrets;
 use tinystoragedrivers_tinybus::migration::{
     EXCHANGE_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH, MigrationModuleClient,
 };
@@ -54,8 +54,8 @@ async fn main() -> VerifyResult<()> {
         .migration
         .take()
         .ok_or_else(|| std::io::Error::other("migration client was already consumed"))?;
-    let (storage, backend) = migrate_legacy_records(migration).await?;
-    verify_normal_storage_after_migration(&fixture, storage, backend).await?;
+    let backend = migrate_legacy_records(migration).await?;
+    verify_normal_storage_after_migration(&fixture, backend).await?;
 
     println!("verified TinyMCP owner transforms through a compiled module");
     Ok(())
@@ -259,7 +259,7 @@ impl AuditSink for NoAudit {
 
 async fn migrate_legacy_records(
     migration: MigrationModuleClient,
-) -> VerifyResult<(ScopedStorage, Arc<MemoryStorage>)> {
+) -> VerifyResult<Arc<MemoryStorage>> {
     let backend = Arc::new(MemoryStorage::new());
     let declaration = migration.declaration().clone();
     let registry =
@@ -303,7 +303,7 @@ async fn migrate_legacy_records(
     registry.check_ready_in(&scope, "mcp.audit")?;
     assert_migrated_server(&storage, &source.meta, expiry).await?;
     assert_migrated_audit_stream(&storage, &audit).await?;
-    Ok((storage, backend))
+    Ok(backend)
 }
 
 async fn assert_migrated_server(
@@ -352,7 +352,6 @@ async fn assert_migrated_audit_stream(
 
 async fn verify_normal_storage_after_migration(
     fixture: &SelectedModule,
-    storage: ScopedStorage,
     backend: Arc<MemoryStorage>,
 ) -> VerifyResult<()> {
     let endpoint = GovernedStorage::new(

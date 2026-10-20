@@ -75,6 +75,8 @@ name = "verify_github_release"
 required-features = ["module"]
 
 [dev-dependencies]
+# The migration fixture implements the host storage resolver.
+async-trait = { workspace = true }
 # `net` stands up the loopback test servers; `test-util` pauses the clock so a
 # five-minute timeout is testable without waiting five minutes. The rest comes
 # from the ordinary dependency entry above.
