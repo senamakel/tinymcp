@@ -81,10 +81,16 @@ async fn serve_untrusted_root(config: &ModuleConfig) -> Connection {
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
+    let provider = crate::storage::installed_provider();
     let service = std::sync::Arc::new(
         McpService::new(config)
             .unwrap()
-            .with_opener(connection.clone(), config, SupervisorConfig::default())
+            .with_opener(
+                connection.clone(),
+                config,
+                SupervisorConfig::default(),
+                provider,
+            )
             .unwrap(),
     );
     service.register_root();
@@ -1196,6 +1202,7 @@ async fn opener_debug_output_does_not_expose_directory_or_client_data() {
         connection.connection.clone(),
         &ModuleConfig::default(),
         SupervisorConfig::default(),
+        crate::storage::installed_provider(),
     )
     .unwrap();
     let debug = format!("{opener:?}");

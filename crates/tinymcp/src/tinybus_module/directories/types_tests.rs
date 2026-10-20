@@ -227,6 +227,7 @@ async fn an_inflight_close_is_reused_and_missing_directories_are_already_closed(
             connection,
             &ModuleConfig::default(),
             SupervisorConfig::default(),
+            crate::storage::installed_provider(),
         )
         .unwrap(),
     );
@@ -311,6 +312,7 @@ async fn a_full_pending_transition_registry_rejects_new_work_without_eviction() 
         connection,
         &ModuleConfig::default(),
         SupervisorConfig::default(),
+        crate::storage::installed_provider(),
     )
     .unwrap();
     opener.transitions.lock().unwrap().extend(
@@ -338,6 +340,7 @@ async fn exhausted_object_and_transition_id_spaces_are_refused_by_name() {
         connection,
         &ModuleConfig::default(),
         SupervisorConfig::default(),
+        crate::storage::installed_provider(),
     )
     .unwrap();
     opener.next_object_id.store(u64::MAX, Ordering::Relaxed);
