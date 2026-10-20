@@ -67,6 +67,10 @@ name = "verify_module"
 required-features = ["module"]
 
 [[example]]
+name = "verify_migration"
+required-features = ["module"]
+
+[[example]]
 name = "verify_github_release"
 required-features = ["module"]
 
