@@ -298,10 +298,7 @@ impl Drop for CloseStdinGateObserver {
     }
 }
 
-fn wait_for_jail_cleanup(
-    fake: &FakeBox,
-    deadline: std::time::Instant,
-) -> Vec<&'static str> {
+fn wait_for_jail_cleanup(fake: &FakeBox, deadline: std::time::Instant) -> Vec<&'static str> {
     loop {
         let members = fake.members();
         if let Some(close) = members.iter().position(|member| *member == names::CLOSE) {
