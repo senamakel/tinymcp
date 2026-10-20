@@ -47,3 +47,7 @@ mod bus_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "grant_tests.rs"]
+mod grant_tests;
