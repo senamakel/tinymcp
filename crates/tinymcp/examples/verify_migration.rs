@@ -168,17 +168,13 @@ async fn verify_migration_authorization(fixture: &SelectedModule) -> VerifyResul
         MIGRATION_OBJECT_PATH,
         MIGRATION_INTERFACE,
     )?;
-    let denied = match outsider
+    let Err(denied) = outsider
         .call_confidential::<Value>(EXCHANGE_MEMBER, json!(17))
         .await
-    {
-        Err(error) => error,
-        Ok(_) => {
-            return Err(io::Error::other(
-                "malformed outsider input was not denied before decoding",
-            )
-            .into());
-        }
+    else {
+        return Err(
+            io::Error::other("malformed outsider input was not denied before decoding").into(),
+        );
     };
     assert!(
         denied
