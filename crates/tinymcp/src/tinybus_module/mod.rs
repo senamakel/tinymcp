@@ -30,11 +30,13 @@ mod service;
 pub use config::ModuleConfig;
 pub use service::McpService;
 
-use std::sync::Arc;
 use std::{
     future::Future,
     pin::Pin,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tinybus::{Connection, Result as TinyBusResult};
 use tinybus_module::ModuleSetupContext;
@@ -42,6 +44,8 @@ use tinymcp_bus::names;
 
 use crate::registry::SupervisorConfig;
 use crate::storage::{TinyMcpMigrationHandler, storage_schema_declaration};
+
+type ModuleSetupFuture = Pin<Box<dyn Future<Output = TinyBusResult<()>> + Send>>;
 
 /// Builds the service and serves it.
 ///
@@ -79,10 +83,7 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
 /// Builds per-instance setup state so the migration callback is registered
 /// once and remains live across configured reinitialization.
 fn setup_factory()
--> impl Fn(ModuleSetupContext, ModuleConfig) -> Pin<Box<dyn Future<Output = TinyBusResult<()>> + Send>>
-+ Send
-+ Sync
-+ 'static {
+-> impl Fn(ModuleSetupContext, ModuleConfig) -> ModuleSetupFuture + Send + Sync + 'static {
     let migration_registered = Arc::new(AtomicBool::new(false));
     let handler = Arc::new(TinyMcpMigrationHandler);
     move |context, config| {
