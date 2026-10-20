@@ -17,7 +17,8 @@ use tinybus::{BusName, Connection, broker::Broker, module::ModuleHost};
 use tinymcp::{InstalledServer, names};
 use tinystoragedrivers_busproxy::{
     AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
-    HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageGrant,
+    HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageDescriptor, StorageGrant,
+    StorageLease,
 };
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::{
@@ -378,7 +379,7 @@ async fn verify_normal_storage_after_migration(
     )
     .await
     .map_err(|_| std::io::Error::other("governed storage service registration failed"))?;
-    let (_lease, descriptor) = registration
+    let (lease, descriptor) = registration
         .register_lease(
             HostStorageContext::new(StorageProfile("module-tinymcp")),
             fixture.module_peer.clone(),
@@ -406,9 +407,20 @@ async fn verify_normal_storage_after_migration(
         names::INTERFACE,
     )?;
     verify_host_backed_root(fixture, &proxy).await?;
-    verify_opened_directory(&fixture.controller, &fixture.module_peer, &proxy).await?;
+    let (child_a, child_dir_a) =
+        verify_opened_directory(&fixture.controller, &fixture.module_peer, &proxy).await?;
     verify_bad_descriptors_leave_current_service_live(fixture, &proxy, &registration).await?;
-    verify_stateless_root_keeps_bound_directory_provider(fixture, descriptor).await
+    verify_stateless_root_keeps_bound_directory_provider(fixture, descriptor.clone()).await?;
+    verify_profiles_are_isolated_and_revocable(
+        fixture,
+        &registration,
+        &lease,
+        descriptor,
+        data_dir.path(),
+        &child_a,
+        &child_dir_a,
+    )
+    .await
 }
 
 async fn verify_host_backed_root(
@@ -435,7 +447,7 @@ async fn verify_opened_directory(
     controller: &Connection,
     module_peer: &BusName,
     proxy: &tinybus::Proxy,
-) -> VerifyResult<()> {
+) -> VerifyResult<(tinybus::Proxy, tempfile::TempDir)> {
     let child_dir = tempfile::tempdir()?;
     let child_path: String = proxy
         .call_confidential(
@@ -448,6 +460,118 @@ async fn verify_opened_directory(
         child.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(child_installed.len(), 1);
     assert_eq!(child_installed[0].server_id, "srv-1");
+    Ok((child, child_dir))
+}
+
+async fn verify_profiles_are_isolated_and_revocable(
+    fixture: &SelectedModule,
+    registration: &FixtureRegistration,
+    lease_a: &StorageLease,
+    descriptor_a: StorageDescriptor,
+    data_dir_a: &Path,
+    child_a: &tinybus::Proxy,
+    _child_dir_a: &tempfile::TempDir,
+) -> VerifyResult<()> {
+    let (lease_b, descriptor_b) = registration
+        .register_lease(
+            HostStorageContext::new(StorageProfile("module-tinymcp-b")),
+            fixture.module_peer.clone(),
+        )
+        .await
+        .map_err(|_| std::io::Error::other("profile-B lease registration failed"))?;
+    let data_dir_b = tempfile::tempdir()?;
+    reinitialize_storage(fixture, &descriptor_b, Some(data_dir_b.path())).await?;
+
+    let migration_b =
+        MigrationModuleClient::discover(&fixture.controller, &fixture.module_peer).await?;
+    assert_eq!(migration_b.declaration().owner.as_str(), "mcp");
+    let proxy_b = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        names::OBJECT_PATH,
+        names::INTERFACE,
+    )?;
+    let installed_b: Vec<InstalledServer> =
+        proxy_b.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert!(
+        installed_b.is_empty(),
+        "profile B has no migrated A records"
+    );
+    let captured_a: Vec<InstalledServer> = child_a.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(captured_a.len(), 1);
+    assert_eq!(captured_a[0].server_id, "srv-1");
+
+    reinitialize_storage(fixture, &descriptor_a, Some(data_dir_a)).await?;
+    let proxy_a = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        names::OBJECT_PATH,
+        names::INTERFACE,
+    )?;
+    let installed_a: Vec<InstalledServer> =
+        proxy_a.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(installed_a.len(), 1);
+    assert_eq!(installed_a[0].server_id, "srv-1");
+    let captured_a: Vec<InstalledServer> = child_a.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(captured_a.len(), 1);
+    assert_eq!(captured_a[0].server_id, "srv-1");
+
+    assert!(registration.revoke(lease_a).await);
+    assert_storage_revocation(&proxy_a).await?;
+    assert_storage_revocation(child_a).await?;
+
+    reinitialize_storage(fixture, &descriptor_b, Some(data_dir_b.path())).await?;
+    let proxy_b = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        names::OBJECT_PATH,
+        names::INTERFACE,
+    )?;
+    let installed_b: Vec<InstalledServer> =
+        proxy_b.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert!(
+        installed_b.is_empty(),
+        "profile B remains usable after A revocation"
+    );
+    let _: tinymcp_bus::RegistrySettings = proxy_b
+        .call(names::methods::REGISTRY_SETTINGS_GET, ())
+        .await?;
+    assert_storage_revocation(child_a).await?;
+    drop(lease_b);
+    Ok(())
+}
+
+async fn reinitialize_storage(
+    fixture: &SelectedModule,
+    descriptor: &StorageDescriptor,
+    data_dir: Option<&Path>,
+) -> VerifyResult<()> {
+    let mut config = json!({"storage_descriptor": descriptor});
+    if let Some(data_dir) = data_dir {
+        config["data_dir"] = json!(data_dir.to_string_lossy());
+    }
+    fixture
+        .module_host
+        .reinitialize(&fixture.module_name, config)
+        .await?;
+    let owner = fixture.controller.name_owner(names::INTERFACE).await?;
+    assert_eq!(owner.as_ref(), Some(&fixture.module_peer));
+    Ok(())
+}
+
+async fn assert_storage_revocation(proxy: &tinybus::Proxy) -> VerifyResult<()> {
+    let Err(tinybus::Error::MethodFailed { name, message }) = proxy
+        .call::<Vec<InstalledServer>>(names::methods::INSTALLED_LIST, ())
+        .await
+    else {
+        return Err(std::io::Error::other(
+            "revoked storage route did not return a typed store denial",
+        )
+        .into());
+    };
+    assert_eq!(name, tinymcp_bus::errors::STORE);
+    assert!(message.starts_with("mcp store failure while listing servers:"));
+    assert!(!message.contains("module-tinymcp"));
+    assert!(!message.contains("service_peer"));
+    assert!(!message.contains("registration_id"));
+    assert!(!message.contains("object_root"));
     Ok(())
 }
 
