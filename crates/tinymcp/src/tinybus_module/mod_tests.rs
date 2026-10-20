@@ -1089,7 +1089,9 @@ async fn configured_tool_call_does_not_register_the_one_shot_server() {
 #[tokio::test]
 async fn configured_tool_call_runs_confidentially_without_registering_server() {
     use tinybus::{
-        Connection, broker::Broker, module::ModuleHost,
+        Connection,
+        broker::Broker,
+        module::ModuleHost,
         transport::memory::{MemoryBus, MemoryTransport},
     };
     use tinymcp_bus::{ClassifiedStaticToolCall, ConfiguredToolCallRequest};
@@ -1142,11 +1144,12 @@ async fn configured_tool_call_runs_confidentially_without_registering_server() {
         .unwrap();
     let broker_task = broker.spawn(bus.clone());
     let host = ModuleHost::new(broker);
-    let info = host.attach_linked_with_config(
-        test_linked_module().unwrap(),
-        serde_json::to_value(ModuleConfig::default()).unwrap(),
-    )
-    .unwrap();
+    let info = host
+        .attach_linked_with_config(
+            test_linked_module().unwrap(),
+            serde_json::to_value(ModuleConfig::default()).unwrap(),
+        )
+        .unwrap();
     host.ensure_ready(info.manifest.bus_name.as_str())
         .await
         .unwrap();
