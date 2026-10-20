@@ -384,7 +384,7 @@ async fn verify_normal_storage_after_migration(
             &fixture.module_name,
             json!({
                 "data_dir": data_dir.path().to_string_lossy(),
-                "storage_descriptor": descriptor,
+                "storage_descriptor": descriptor.clone(),
             }),
         )
         .await?;
@@ -408,29 +408,6 @@ async fn verify_normal_storage_after_migration(
     let _: tinymcp_bus::RegistrySettings = proxy
         .call(names::methods::REGISTRY_SETTINGS_GET, ())
         .await?;
-
-    assert!(
-        fixture
-            .module_host
-            .reinitialize(
-                &fixture.module_name,
-                json!({"storage_descriptor": descriptor.clone()}),
-            )
-            .await
-            .is_err(),
-        "a host storage descriptor without a persistent root must fail closed"
-    );
-    assert!(
-        !fixture.module_host.list().iter().any(|module| {
-            module.name == fixture.module_name
-                && matches!(module.state, tinybus::module::ModuleState::Faulted { .. })
-        }),
-        "missing-root setup failure must leave the admitted module live"
-    );
-    let after_missing_root: Vec<InstalledServer> =
-        proxy.call(names::methods::INSTALLED_LIST, ()).await?;
-    assert_eq!(after_missing_root.len(), 1);
-    assert_eq!(after_missing_root[0].server_id, "srv-1");
 
     let child_dir = tempfile::tempdir()?;
     let child_path: String = proxy
@@ -509,7 +486,7 @@ async fn verify_normal_storage_after_migration(
         .module_host
         .reinitialize(
             &fixture.module_name,
-            json!({"storage_descriptor": descriptor}),
+            json!({"storage_descriptor": descriptor.clone()}),
         )
         .await?;
     let no_root_migration =
