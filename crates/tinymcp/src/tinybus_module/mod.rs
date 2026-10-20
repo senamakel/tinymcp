@@ -49,6 +49,13 @@ use crate::storage::{TinyMcpMigrationHandler, storage_schema_declaration};
 /// here as background work and `setup` does not wait for them, so a server that
 /// is down delays nothing. See [`maintenance`].
 pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyBusResult<()> {
+    if let Some(descriptor) = config.storage_descriptor.clone() {
+        let provider = Arc::new(
+            crate::storage::BusProvider::connect_bound(connection.clone(), descriptor).await?,
+        );
+        return setup_with_provider(connection, config, provider).await;
+    }
+
     // A module that keeps state reaches the host's storage over the bus; the
     // host binds the scope and the grant. A host that linked the module into
     // its own process and installed a provider has already chosen. Failing
@@ -145,13 +152,30 @@ pub(super) async fn setup_over_installed_storage(
     connection: Connection,
     config: ModuleConfig,
 ) -> TinyBusResult<()> {
+    setup_with_provider(
+        connection,
+        config,
+        crate::storage::installed_provider(),
+    )
+    .await
+}
+
+async fn setup_with_provider(
+    connection: Connection,
+    config: ModuleConfig,
+    provider: Arc<dyn crate::storage::StorageProvider>,
+) -> TinyBusResult<()> {
     let supervisor = SupervisorConfig::default();
     let service = Arc::new(
-        McpService::new_with_stdio(&config, stdio_launchers(Some(&connection), &config.client))
+        McpService::with_provider_and_stdio(
+            &config,
+            provider.clone(),
+            stdio_launchers(Some(&connection), &config.client),
+        )
             .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
             .with_maintenance(supervisor.clone())
             .await
-            .with_opener(connection.clone(), &config, supervisor)
+            .with_opener(connection.clone(), &config, supervisor, provider)
             .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
     );
 
