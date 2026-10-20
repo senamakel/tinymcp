@@ -30,8 +30,10 @@ pub struct ModuleConfig {
     /// The host-issued current-only storage route for this module instance.
     ///
     /// This is routing data, not authority: the TSD host validates the module's
-    /// authenticated peer against the live lease on every call. `None` keeps
-    /// the legacy host-storage lookup behavior for older loaders.
+    /// authenticated peer against the live lease on every call. It requires
+    /// `data_dir`; supplying a descriptor without a persistent root fails setup
+    /// instead of silently selecting in-memory storage. `None` keeps the legacy
+    /// host-storage lookup behavior for older loaders.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage_descriptor: Option<StorageDescriptor>,
 }
