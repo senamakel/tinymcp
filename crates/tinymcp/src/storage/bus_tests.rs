@@ -147,11 +147,14 @@ async fn a_bound_provider_rejects_a_descriptor_with_an_invalid_lease_root() {
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
-    let descriptor = tinystoragedrivers_busproxy::StorageDescriptor {
-        service_peer: ":1.42".to_owned(),
-        registration_id: 1,
-        object_root: "/org/tinystoragedrivers/Storage".to_owned(),
-    };
+    let descriptor: tinystoragedrivers_busproxy::StorageDescriptor = serde_json::from_value(
+        serde_json::json!({
+            "service_peer": ":1.42",
+            "registration_id": 1,
+            "object_root": "/org/tinystoragedrivers/Storage"
+        }),
+    )
+    .unwrap();
 
     let error = BusProvider::connect_bound(connection, descriptor)
         .await
