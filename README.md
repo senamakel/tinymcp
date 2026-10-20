@@ -85,7 +85,7 @@ docs/
 ```
 
 The separation is the point. A payload type describes what a frame carries; the
-behavior that answers it is a different obligation. `template` depends on
+behavior that answers it is a different obligation. `tinymcp` depends on
 `tinymcp-bus` and re-exports all of it, so `tinymcp::GreetRequest` and
 `tinymcp_bus::GreetRequest` are the *same* type rather than structural twins,
 and a host is never forced to choose between linking the whole module and
