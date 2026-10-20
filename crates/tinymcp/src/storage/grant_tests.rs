@@ -1,4 +1,4 @@
-//! Tests that the executable grant stays aligned with TinyMCP's schema and secret needs.
+//! Tests that the executable grant stays aligned with `TinyMCP`'s schema and secret needs.
 
 use super::*;
 
