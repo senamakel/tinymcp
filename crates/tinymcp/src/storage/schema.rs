@@ -84,7 +84,7 @@ pub(crate) fn storage_schema_declaration() -> tinystoragedrivers_core::Result<Sc
 }
 
 fn migration_operation(step: &Step) -> Option<&'static str> {
-    match step.id.as_str() {
+    match step.id {
         "servers_v2" => Some(SERVERS_V2_OPERATION),
         "server_names_v2" => Some(SERVER_NAMES_V2_OPERATION),
         "registry_cache_v2" => Some(REGISTRY_CACHE_V2_OPERATION),

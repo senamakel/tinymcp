@@ -14,11 +14,11 @@ use tinystoragedrivers_core::schema::{SourceRecord, Step, TargetRecord};
 
 #[cfg(feature = "module")]
 use tinystoragedrivers_core::schema::delivery::{
-    MigrationPayload, MigrationPayloadHandler, MigrationPayloadReply, TransformResult,
+    MigrationPayload, MigrationPayloadHandler, MigrationPayloadReply,
 };
 #[cfg(feature = "module")]
 use tinystoragedrivers_core::schema::{
-    StreamMapMode, StreamPlan, TransformError, TransformErrorKind,
+    TransformError, TransformErrorKind, TransformResult,
 };
 
 use super::schema::{
