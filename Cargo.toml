@@ -33,8 +33,8 @@ repository = "https://github.com/tinyhumansai/tinymcp"
 tinymcp-bus = { path = "crates/tinymcp-bus" }
 # Canonical storage request types for this crate's contract, with client/TinyBus
 # defaults disabled: tinymcp-bus carries declarations only, not transport. Pin
-# the released v1.8.0 fork source by immutable commit; the canonical URL keeps
-# this package identity unified with hosts and the other TSD crates.
+# the v1.9 prototype by immutable commit; the canonical URL keeps this package
+# identity unified with hosts and the other TSD crates.
 tinystoragedrivers-bus = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4", default-features = false }
 # The TinyBox bus contract, used by the jailed stdio launcher to start MCP
 # servers inside TinyBox's native jail. Contract types only: the module reaches
