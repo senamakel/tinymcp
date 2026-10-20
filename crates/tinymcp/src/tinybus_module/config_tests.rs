@@ -7,6 +7,7 @@ use serde_json::json;
 fn old_empty_and_null_configurations_omit_the_storage_descriptor() {
     for value in [json!({}), serde_json::Value::Null] {
         let config: ModuleConfig = serde_json::from_value(value).unwrap();
+        assert!(config.storage_descriptor.is_none());
         let encoded = serde_json::to_value(config).unwrap();
 
         assert!(encoded.get("storage_descriptor").is_none());

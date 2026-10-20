@@ -368,7 +368,7 @@ async fn verify_normal_storage_after_migration(
     )
     .await
     .map_err(|_| std::io::Error::other("governed storage service registration failed"))?;
-    let (_lease, _descriptor) = registration
+    let (_lease, descriptor) = registration
         .register_lease(
             HostStorageContext::new(StorageProfile("module-tinymcp")),
             fixture.module_peer.clone(),
@@ -382,7 +382,10 @@ async fn verify_normal_storage_after_migration(
         .module_host
         .reinitialize(
             &fixture.module_name,
-            json!({"data_dir":data_dir.path().to_string_lossy()}),
+            json!({
+                "data_dir": data_dir.path().to_string_lossy(),
+                "storage_descriptor": descriptor,
+            }),
         )
         .await?;
     let after_owner = fixture.controller.name_owner(names::INTERFACE).await?;
@@ -405,5 +408,80 @@ async fn verify_normal_storage_after_migration(
     let _: tinymcp_bus::RegistrySettings = proxy
         .call(names::methods::REGISTRY_SETTINGS_GET, ())
         .await?;
+
+    let child_dir = tempfile::tempdir()?;
+    let child_path: String = proxy
+        .call_confidential(
+            names::methods::OPEN,
+            (child_dir.path().to_string_lossy().to_string(),),
+        )
+        .await?;
+    let child = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        child_path.as_str(),
+        names::INTERFACE,
+    )?;
+    let child_installed: Vec<InstalledServer> =
+        child.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(child_installed.len(), 1);
+    assert_eq!(child_installed[0].server_id, "srv-1");
+
+    let malformed_descriptor = json!({
+        "service_peer": "not-a-unique-peer",
+        "registration_id": 77,
+        "object_root": "/ai/tinyhumans/tinystorage/Leases/77"
+    });
+    assert!(
+        fixture
+            .module_host
+            .reinitialize(
+                &fixture.module_name,
+                json!({
+                    "data_dir": data_dir.path().to_string_lossy(),
+                    "storage_descriptor": malformed_descriptor,
+                }),
+            )
+            .await
+            .is_err(),
+        "a malformed host route must fail setup without replacing the running service"
+    );
+    assert!(
+        !fixture.module_host.list().iter().any(|module| {
+            module.name == fixture.module_name
+                && matches!(module.state, tinybus::module::ModuleState::Faulted { .. })
+        }),
+        "a rejected storage descriptor must leave the admitted module live"
+    );
+    let after_malformed: Vec<InstalledServer> =
+        proxy.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(after_malformed.len(), 1);
+    assert_eq!(after_malformed[0].server_id, "srv-1");
+
+    let (revoked_lease, revoked_descriptor) = registration
+        .register_lease(
+            HostStorageContext::new(StorageProfile("revoked-route")),
+            fixture.module_peer.clone(),
+        )
+        .await
+        .map_err(|_| std::io::Error::other("revoked-route lease registration failed"))?;
+    assert!(registration.revoke(&revoked_lease).await);
+    assert!(
+        fixture
+            .module_host
+            .reinitialize(
+                &fixture.module_name,
+                json!({
+                    "data_dir": data_dir.path().to_string_lossy(),
+                    "storage_descriptor": revoked_descriptor,
+                }),
+            )
+            .await
+            .is_err(),
+        "a revoked host route must fail setup without replacing the running service"
+    );
+    let after_revoked: Vec<InstalledServer> =
+        proxy.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(after_revoked.len(), 1);
+    assert_eq!(after_revoked[0].server_id, "srv-1");
     Ok(())
 }
