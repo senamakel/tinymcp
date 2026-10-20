@@ -147,17 +147,20 @@ async fn a_bound_provider_rejects_a_descriptor_with_an_invalid_lease_root() {
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
-    let descriptor: tinystoragedrivers_busproxy::StorageDescriptor = serde_json::from_value(
-        serde_json::json!({
+    let descriptor: tinystoragedrivers_busproxy::StorageDescriptor =
+        serde_json::from_value(serde_json::json!({
             "service_peer": ":1.42",
             "registration_id": 1,
             "object_root": "/org/tinystoragedrivers/Storage"
-        }),
-    )
-    .unwrap();
+        }))
+        .unwrap();
 
     let error = BusProvider::connect_bound(connection, descriptor)
         .await
         .expect_err("a fixed storage root is not a lease route");
-    assert!(error.to_string().contains("connecting to the host storage lease"));
+    assert!(
+        error
+            .to_string()
+            .contains("connecting to the host storage lease")
+    );
 }

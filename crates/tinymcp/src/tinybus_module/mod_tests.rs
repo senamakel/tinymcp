@@ -3191,8 +3191,10 @@ impl tinystoragedrivers_busproxy::Environment<BoundStorageContext> for BoundStor
         &self,
         _context: &BoundStorageContext,
         _module: &tinybus::module::ModuleId,
-    ) -> Result<tinystoragedrivers_busproxy::ResolvedStorage, tinystoragedrivers_busproxy::HostFailure>
-    {
+    ) -> Result<
+        tinystoragedrivers_busproxy::ResolvedStorage,
+        tinystoragedrivers_busproxy::HostFailure,
+    > {
         let grant = tinystoragedrivers_busproxy::StorageGrant::from_needs_with_exact_secrets(
             tinymcp_bus::storage::storage_needs(),
             &tinystoragedrivers_busproxy::GrantPolicy {
@@ -3249,8 +3251,9 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
         Arc::new(BoundStorageAudit),
         GovernedEndpointLimits::default(),
     );
-    let service_connection =
-        tinybus::Connection::connect(bus.connect().await.unwrap()).await.unwrap();
+    let service_connection = tinybus::Connection::connect(bus.connect().await.unwrap())
+        .await
+        .unwrap();
     let registration = Arc::new(policy.register(
         service_connection,
         Arc::new(TinyBusCallerDirectory(host.sender_lookup())),
@@ -3271,17 +3274,15 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
                 .register_lease(HostStorageContext::new(BoundStorageContext), peer)
                 .await
                 .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
-            let provider = crate::storage::BusProvider::connect_bound(
-                connection.clone(),
-                descriptor.clone(),
-            )
-            .await
-            .map_err(|_| tinybus::Error::failed("module could not connect its storage lease"))?;
-            let ports = crate::storage::StorageProvider::ports_for(
-                &provider,
-                Path::new("module-data"),
-            )
-            .map_err(|_| tinybus::Error::failed("module storage ports were unavailable"))?;
+            let provider =
+                crate::storage::BusProvider::connect_bound(connection.clone(), descriptor.clone())
+                    .await
+                    .map_err(|_| {
+                        tinybus::Error::failed("module could not connect its storage lease")
+                    })?;
+            let ports =
+                crate::storage::StorageProvider::ports_for(&provider, Path::new("module-data"))
+                    .map_err(|_| tinybus::Error::failed("module storage ports were unavailable"))?;
             ports
                 .prepare()
                 .map_err(|_| tinybus::Error::failed("module storage ports could not prepare"))?;

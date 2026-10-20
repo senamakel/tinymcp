@@ -250,8 +250,8 @@ fn legacy_rows_without_rekey_data_are_dropped() {
     };
 
     // The server step can carry a non-object record only by dropping it.
-    let non_object = rewrite_documents(SERVERS, vec![input("srv-1", json!("invalid"))], server)
-        .unwrap();
+    let non_object =
+        rewrite_documents(SERVERS, vec![input("srv-1", json!("invalid"))], server).unwrap();
     assert_eq!(
         non_object,
         Vec::<tinystoragedrivers_core::schema::TargetRecord>::new()
@@ -553,6 +553,7 @@ fn the_module_handler_reuses_the_audit_stream_name_transform() {
 #[cfg(feature = "module")]
 #[test]
 fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() {
+    use tinystoragedrivers_core::Meta;
     use tinystoragedrivers_core::schema::delivery::{
         BlobTargetRequest, MigrationPayload, MigrationPayloadReply, StreamEntriesRequest,
         StreamPlanRequest,
@@ -560,12 +561,8 @@ fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() 
     use tinystoragedrivers_core::schema::{
         DocumentsTransformRequest, SourceRecord, TransformErrorKind, TransformResult,
     };
-    use tinystoragedrivers_core::Meta;
 
-    fn assert_error<T: std::fmt::Debug>(
-        result: TransformResult<T>,
-        expected: TransformErrorKind,
-    ) {
+    fn assert_error<T: std::fmt::Debug>(result: TransformResult<T>, expected: TransformErrorKind) {
         assert_eq!(result.unwrap_err().kind, expected);
     }
 
@@ -596,10 +593,9 @@ fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() 
         panic!("document requests return document results");
     };
     assert_error(result, unsupported);
-    let MigrationPayloadReply::Documents(result) = handler.transform(document(
-        crate::storage::schema::SERVERS_V2_OPERATION,
-        99,
-    )) else {
+    let MigrationPayloadReply::Documents(result) =
+        handler.transform(document(crate::storage::schema::SERVERS_V2_OPERATION, 99))
+    else {
         panic!("document requests return document results");
     };
     assert_error(result, unsupported_version);
@@ -614,11 +610,7 @@ fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() 
     for (request, expected) in [
         (stream_plan("unknown", 1, "mcp_audit"), unsupported),
         (
-            stream_plan(
-                crate::storage::schema::AUDIT_V2_OPERATION,
-                99,
-                "mcp_audit",
-            ),
+            stream_plan(crate::storage::schema::AUDIT_V2_OPERATION, 99, "mcp_audit"),
             unsupported_version,
         ),
         (
@@ -636,23 +628,23 @@ fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() 
         assert_error(result, expected);
     }
 
-    let MigrationPayloadReply::StreamEntries(result) = handler.transform(
-        MigrationPayload::StreamEntries(StreamEntriesRequest {
+    let MigrationPayloadReply::StreamEntries(result) =
+        handler.transform(MigrationPayload::StreamEntries(StreamEntriesRequest {
             operation: crate::storage::schema::AUDIT_V2_OPERATION.to_owned(),
             version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
             entries: vec![],
-        }),
-    ) else {
+        }))
+    else {
         panic!("stream-entry requests return stream-entry results");
     };
     assert_error(result, unsupported);
-    let MigrationPayloadReply::BlobTarget(result) = handler.transform(
-        MigrationPayload::BlobTarget(BlobTargetRequest {
+    let MigrationPayloadReply::BlobTarget(result) =
+        handler.transform(MigrationPayload::BlobTarget(BlobTargetRequest {
             operation: "mcp.blob_v2".to_owned(),
             version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
             source: "mcp/old".to_owned(),
-        }),
-    ) else {
+        }))
+    else {
         panic!("blob requests return blob results");
     };
     assert_error(result, unsupported);
