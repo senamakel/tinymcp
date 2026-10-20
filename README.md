@@ -5,11 +5,13 @@ ships the workspace layout, TinyBus ABI adapter, error handling, testing,
 documentation, CI, and multi-platform release workflow that every new
 integration in this organization starts from.
 
-It is a two-crate cargo workspace. `crates/tinymcp-bus` is the wire contract —
+This repository's cargo workspace has three crates. `crates/tinymcp-bus` is the wire contract —
 member names, payload types, and the contract version, with no transport and no
 behavior — and `crates/tinymcp` is the implementation, built as both an `rlib`
 and the `cdylib` TinyBus loads. A host that only makes calls depends on the
 contract crate alone and compiles neither the module nor `tinybus` itself.
+`crates/tinymcp-client` holds host-side lifecycle state and admission
+bookkeeping; it depends on the bus contract alone and performs no bus I/O.
 
 ## Use This Template
 
@@ -59,7 +61,9 @@ crates/
 │       │   ├── types.rs
 │       │   └── test.rs
 │       └── version/    # contract version and the host bind rule
-└── template/           # the module — behavior, adapter, and the cdylib
+├── tinymcp-client/    # host-side lifecycle helpers; contract-only
+│   └── src/lib.rs      # lifecycle API and crate documentation
+└── tinymcp/           # the module — behavior, adapter, and the cdylib
     ├── src/
     │   ├── lib.rs      # crate docs + public surface, re-exporting the contract
     │   ├── error/      # crate-wide `Error` and `Result<T>`
@@ -80,12 +84,13 @@ docs/
 └── adr/                # immutable architecture decision records
 ```
 
-The split is the point. A payload type describes what a frame carries; the
+The separation is the point. A payload type describes what a frame carries; the
 behavior that answers it is a different obligation. `template` depends on
 `tinymcp-bus` and re-exports all of it, so `tinymcp::GreetRequest` and
 `tinymcp_bus::GreetRequest` are the *same* type rather than structural twins,
 and a host is never forced to choose between linking the whole module and
-redefining the vocabulary. See
+redefining the vocabulary. `tinymcp-client` adds host-side lifecycle helpers
+without linking module implementation code. See
 [`crates/tinymcp-bus/README.md`](crates/tinymcp-bus/README.md).
 
 Within each crate, feature areas use directory modules: implementation and

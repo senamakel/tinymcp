@@ -1,3 +1,5 @@
+//! Tests that distinguish completed jail cleanup from a late stdin-close call.
+
 use super::*;
 
 #[test]

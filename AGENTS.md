@@ -52,7 +52,9 @@ crates/
 │       ├── names/      # interface, object path, one constant per member
 │       ├── version/    # contract version and the host bind rule
 │       └── <family>/   # one directory per payload family
-└── template/           # the module: behavior, adapter, and the cdylib
+├── tinymcp-client/    # host-side lifecycle helpers; depends on the bus only
+│   └── src/lib.rs     # lifecycle state machine and admission table
+└── tinymcp/           # the module: behavior, adapter, and the cdylib
     ├── src/
     │   ├── lib.rs      # crate docs + public surface, re-exporting the contract
     │   ├── error/mod.rs      # crate-wide `Error` and `Result<T>`
@@ -70,7 +72,7 @@ docs/
 └── adr/                # immutable architecture decision records
 ```
 
-### The two-crate split
+### The three-crate split
 
 `crates/tinymcp-bus` holds every type that crosses the bus and the names of the
 members that carry them. It has no transport, no runtime, and no behavior, and
@@ -81,6 +83,10 @@ CI asserts it stays that way. A host that only makes calls depends on it alone.
 rather than structural twins. That direction is load-bearing: a parallel set of
 payload types for hosts would mean a conversion at every call site that nothing
 checks.
+
+`crates/tinymcp-client` contains host-side configured-client lifecycle state
+and admission bookkeeping. It depends on `tinymcp-bus` alone and performs no
+bus I/O, so hosts can share lifecycle rules without linking the module.
 
 The rule for deciding where something goes: a payload type describes what a
 frame carries and belongs in the contract; anything that answers a frame, holds

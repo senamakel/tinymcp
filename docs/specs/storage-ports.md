@@ -48,20 +48,23 @@ field declares `mcp_cache_fingerprint_key` as an exact-name need; it must not
 be widened to a prefix. This declaration describes what the module uses; it
 does not grant authority by itself. A host selects the declaration through its
 module admission and resource-mapping policy, applies its own storage policy,
-and binds the resulting grant to the authenticated caller. TinyMCP does not
-maintain a parallel `StorageGrant` list of the same resources.
+and binds the resulting grant to the authenticated caller. TinyMCP also exports
+`tinymcp::storage::{StorageGrant, grant, collection_specs}` as an executable
+projection generated from its schema; this is not a second source of resource
+names or host authorization policy.
 
 The bus crate keeps only this static needs vocabulary. TinyMCP's storage
 module projects it into TinyStorageDrivers' executable schema and owns the
 versioned migration callbacks; a contract-only host does not compile either.
 
-Consumers replacing the implementation-local storage API should read
+Consumers that need the transport-free contract should read
 `tinymcp_bus::storage_needs().needs.collections` and the sibling stream and
 secret selectors; exact names are in
 `tinymcp_bus::storage_needs().exact_secret_names`. The implementation crate
-re-exports this declaration as `tinymcp::storage::storage_needs()`. It replaces
-the removed `tinymcp::storage::{StorageGrant, grant, collection_specs}`
-declarations.
+re-exports this declaration as `tinymcp::storage::storage_needs()` and derives
+its `StorageGrant` and collection specifications from the executable schema.
+Contract-only hosts should make authorization decisions from the bus needs and
+their own policy rather than depend on the implementation crate.
 
 ## Behaviour notes
 

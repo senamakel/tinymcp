@@ -1,3 +1,5 @@
+//! Tests that the executable grant stays aligned with TinyMCP's schema and secret needs.
+
 use super::*;
 
 use tinystoragedrivers_core::schema::Item;
