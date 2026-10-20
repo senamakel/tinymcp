@@ -233,7 +233,7 @@ impl CloseStdinGate {
                 deadline: Mutex::new(None),
             }),
             CloseStdinGateObserver {
-                entered: entered_rx,
+                entered: Mutex::new(Some(entered_rx)),
                 allow_record,
                 close_recorded: close_recorded_rx,
                 stdin_recorded: stdin_recorded_rx,
@@ -272,15 +272,29 @@ impl CloseStdinGate {
 }
 
 struct CloseStdinGateObserver {
-    entered: std::sync::mpsc::Receiver<()>,
+    entered: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
     allow_record: std::sync::mpsc::SyncSender<()>,
     close_recorded: std::sync::mpsc::Receiver<()>,
     stdin_recorded: std::sync::mpsc::Receiver<()>,
 }
 
+impl CloseStdinGateObserver {
+    fn take_entered(&self) -> std::sync::mpsc::Receiver<()> {
+        self.entered
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the entry receiver is taken once")
+    }
+
+    fn release_stdin_gate(&self) {
+        let _ = self.allow_record.try_send(());
+    }
+}
+
 impl Drop for CloseStdinGateObserver {
     fn drop(&mut self) {
-        let _ = self.allow_record.try_send(());
+        self.release_stdin_gate();
     }
 }
 
