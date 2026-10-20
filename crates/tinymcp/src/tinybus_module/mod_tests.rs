@@ -3232,15 +3232,26 @@ impl tinystoragedrivers_busproxy::AuditSink for BoundStorageAudit {
 async fn a_selected_linked_module_uses_its_bound_storage_lease() {
     use std::path::Path;
     use std::time::Duration;
-    use tinybus::{broker::Broker, module::ModuleHost, transport::memory::MemoryBus};
+    use tinybus::{
+        broker::Broker,
+        module::ModuleHost,
+        transport::memory::{MemoryBus, MemoryTransport},
+    };
     use tinystoragedrivers_busproxy::{
         GovernedEndpointLimits, GovernedStorage, HostStorageContext, TinyBusCallerDirectory,
     };
     use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
 
     let bus = MemoryBus::new();
-    let broker = Broker::new();
-    let broker_task = broker.clone().spawn(bus.clone());
+    let broker = Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .unwrap();
+    let controller = tinybus::Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
+    let broker_task = broker.spawn(bus.clone());
     let host = ModuleHost::new(broker);
     let backend = MemoryStorage::new();
     let storage = backend.for_scope(&Scope::local()).unwrap();
@@ -3263,7 +3274,8 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
     let (prepared_tx, prepared_rx) = tokio::sync::oneshot::channel();
     let registration_for_setup = Arc::clone(&registration);
 
-    host.attach_linked_with_setup(
+    let info = host
+        .attach_linked_with_setup(
         test_linked_module().unwrap(),
         serde_json::to_value(ModuleConfig::default()).unwrap(),
         move |connection| async move {
@@ -3302,12 +3314,27 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
     )
     .await
     .unwrap();
+    host.ensure_ready(info.manifest.bus_name.as_str())
+        .await
+        .unwrap();
 
     tokio::time::timeout(Duration::from_secs(2), prepared_rx)
         .await
         .expect("the selected module did not prepare its host-bound storage")
         .unwrap();
     let lease = lease_rx.await.unwrap();
+    let proxy = controller
+        .proxy(
+            names::INTERFACE,
+            names::OBJECT_PATH,
+            names::INTERFACE,
+        )
+        .unwrap();
+    let has_state: bool = proxy
+        .call(names::methods::HAS_STORED_STATE, ("bound-route-check",))
+        .await
+        .unwrap();
+    assert!(!has_state, "a prepared storage scope contains no MCP records");
     host.shutdown(Duration::from_secs(2)).await;
     drop(lease);
     registration.shutdown().await.unwrap();
