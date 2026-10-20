@@ -54,3 +54,7 @@ impl<'de> Deserialize<'de> for ModuleConfig {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;
