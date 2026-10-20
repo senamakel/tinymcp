@@ -16,8 +16,8 @@ use tinymcp::{InstalledServer, names};
 use tinystoragedrivers_busproxy::{PerCallerEndpoint, serve};
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::{
-    CollectionSpec, DocumentStoreExt, MemoryStorage, Precondition, Scope, ScopedStorage,
-    StorageBackend, WriteOptions,
+    CollectionSpec, MemoryStorage, Precondition, Scope, ScopedStorage, StorageBackend,
+    WriteOptions,
     schema::{MigrateOptions, Registry, delivery::MigrationDeliveryClient},
 };
 use tinystoragedrivers_secrets::MemorySecrets;
@@ -29,7 +29,7 @@ type VerifyResult<T> = Result<T, Box<dyn Error>>;
 
 struct SelectedModule {
     _staging: tempfile::TempDir,
-    broker_task: tokio::task::JoinHandle<()>,
+    broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
     controller: Connection,
     outsider: Connection,
     _module_host: ModuleHost,
@@ -215,7 +215,7 @@ async fn migrate_legacy_records(migration: MigrationModuleClient) -> VerifyResul
         json!({"timestamp_ms":2, "tool_name":"second", "success":false}),
     ];
     for entry in &audit {
-        storage.streams().append("mcp_audit", entry).await?;
+        storage.streams().append("mcp_audit", entry.clone()).await?;
     }
 
     let executor = MigrationDeliveryClient::new(Arc::new(migration));
