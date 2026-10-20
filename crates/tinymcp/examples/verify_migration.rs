@@ -5,6 +5,7 @@
 
 use std::{
     error::Error,
+    io,
     path::{Path, PathBuf},
     sync::Arc,
 };
