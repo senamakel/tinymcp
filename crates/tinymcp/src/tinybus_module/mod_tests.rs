@@ -3176,3 +3176,137 @@ async fn configured_tool_call_uses_the_services_sandbox_not_an_empty_launcher_se
     let call: tinymcp_bus::ClassifiedStaticToolCall = serde_json::from_value(reply).unwrap();
     assert!(!call.outcome.ok);
 }
+
+struct BoundStorageContext;
+
+impl tinystoragedrivers_busproxy::HostContext for BoundStorageContext {}
+
+struct BoundStorageEnvironment {
+    server: Arc<tinystoragedrivers_client::StorageServer>,
+}
+
+#[async_trait::async_trait]
+impl tinystoragedrivers_busproxy::Environment<BoundStorageContext> for BoundStorageEnvironment {
+    async fn resolve(
+        &self,
+        _context: &BoundStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<tinystoragedrivers_busproxy::ResolvedStorage, tinystoragedrivers_busproxy::HostFailure>
+    {
+        let grant = tinystoragedrivers_busproxy::StorageGrant::from_needs_with_exact_secrets(
+            tinymcp_bus::storage::storage_needs(),
+            &tinystoragedrivers_busproxy::GrantPolicy {
+                writable: true,
+                allow_secrets: true,
+                ..Default::default()
+            },
+        )
+        .map_err(|_| tinystoragedrivers_busproxy::HostFailure::Denied("invalid-test-grant"))?;
+        Ok(tinystoragedrivers_busproxy::ResolvedStorage {
+            backend_identity: "tinymcp-test".to_owned(),
+            binding_epoch: 1,
+            canonical_scope: "test:tinymcp".to_owned(),
+            grant,
+            server: Arc::clone(&self.server),
+        })
+    }
+
+    async fn admit_write(
+        &self,
+        _context: &BoundStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<(), tinystoragedrivers_busproxy::HostFailure> {
+        Ok(())
+    }
+}
+
+struct BoundStorageAudit;
+
+impl tinystoragedrivers_busproxy::AuditSink for BoundStorageAudit {
+    fn record(&self, _event: tinystoragedrivers_busproxy::AuditEvent) {}
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_selected_linked_module_uses_its_bound_storage_lease() {
+    use std::path::Path;
+    use std::time::Duration;
+    use tinybus::{broker::Broker, module::ModuleHost, transport::memory::MemoryBus};
+    use tinystoragedrivers_busproxy::{
+        GovernedEndpointLimits, GovernedStorage, HostStorageContext, TinyBusCallerDirectory,
+    };
+    use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
+
+    let bus = MemoryBus::new();
+    let broker = Broker::new();
+    let broker_task = broker.clone().spawn(bus.clone());
+    let host = ModuleHost::new(broker);
+    let backend = MemoryStorage::new();
+    let storage = backend.for_scope(&Scope::local()).unwrap();
+    let server = Arc::new(tinystoragedrivers_client::StorageServer::new(storage));
+    let environment = Arc::new(BoundStorageEnvironment { server });
+    let policy = GovernedStorage::new(
+        environment,
+        Arc::new(BoundStorageAudit),
+        GovernedEndpointLimits::default(),
+    );
+    let service_connection =
+        tinybus::Connection::connect(bus.connect().await.unwrap()).await.unwrap();
+    let registration = Arc::new(policy.register(
+        service_connection,
+        Arc::new(TinyBusCallerDirectory(host.sender_lookup())),
+        tokio::runtime::Handle::current(),
+    ));
+    let (lease_tx, lease_rx) = tokio::sync::oneshot::channel();
+    let (prepared_tx, prepared_rx) = tokio::sync::oneshot::channel();
+    let registration_for_setup = Arc::clone(&registration);
+
+    host.attach_linked_with_setup(
+        test_linked_module().unwrap(),
+        serde_json::to_value(ModuleConfig::default()).unwrap(),
+        move |connection| async move {
+            let peer = connection
+                .unique_name()
+                .ok_or_else(|| tinybus::Error::failed("module has no assigned peer"))?;
+            let (lease, descriptor) = registration_for_setup
+                .register_lease(HostStorageContext::new(BoundStorageContext), peer)
+                .await
+                .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
+            let provider = crate::storage::BusProvider::connect_bound(
+                connection.clone(),
+                descriptor.clone(),
+            )
+            .await
+            .map_err(|_| tinybus::Error::failed("module could not connect its storage lease"))?;
+            let ports = crate::storage::StorageProvider::ports_for(
+                &provider,
+                Path::new("module-data"),
+            )
+            .map_err(|_| tinybus::Error::failed("module storage ports were unavailable"))?;
+            ports
+                .prepare()
+                .map_err(|_| tinybus::Error::failed("module storage ports could not prepare"))?;
+            prepared_tx
+                .send(())
+                .map_err(|_| tinybus::Error::failed("storage test observer was dropped"))?;
+            lease_tx
+                .send(lease)
+                .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
+
+            let mut config = ModuleConfig::default();
+            config.storage_descriptor = Some(descriptor);
+            super::setup(connection, config).await
+        },
+    )
+    .await
+    .unwrap();
+
+    tokio::time::timeout(Duration::from_secs(2), prepared_rx)
+        .await
+        .expect("the selected module did not prepare its host-bound storage")
+        .unwrap();
+    let lease = lease_rx.await.unwrap();
+    host.shutdown(Duration::from_secs(2)).await;
+    drop(lease);
+    registration.shutdown().await;
+    broker_task.abort();
+}
