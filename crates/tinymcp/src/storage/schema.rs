@@ -90,7 +90,10 @@ pub fn storage_schema() -> Schema {
 #[cfg(any(feature = "module", test))]
 pub(crate) fn storage_schema_declaration() -> tinystoragedrivers_core::Result<SchemaDeclaration> {
     tinystoragedrivers_core::schema::declaration_from_schema(&storage_schema(), |step| {
-        Some((migration_operation(step)?.to_owned(), MIGRATION_TRANSFORM_VERSION))
+        Some((
+            migration_operation(step)?.to_owned(),
+            MIGRATION_TRANSFORM_VERSION,
+        ))
     })
 }
 

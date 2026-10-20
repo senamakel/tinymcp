@@ -28,8 +28,8 @@ use super::schema::{
 #[cfg(any(feature = "module", test))]
 use super::schema::{
     AUDIT_V2_OPERATION, MIGRATION_TRANSFORM_VERSION, REGISTRY_CACHE_V2_OPERATION,
-    REGISTRY_INDEX_STATE_V2_OPERATION, REGISTRY_INDEX_V2_OPERATION,
-    SERVER_NAMES_V2_OPERATION, SERVERS_V2_OPERATION, TOOL_CACHE_V2_OPERATION,
+    REGISTRY_INDEX_STATE_V2_OPERATION, REGISTRY_INDEX_V2_OPERATION, SERVER_NAMES_V2_OPERATION,
+    SERVERS_V2_OPERATION, TOOL_CACHE_V2_OPERATION,
 };
 
 /// The version the steps read.
@@ -112,7 +112,8 @@ fn rewrite_documents(
             continue;
         };
         if let Some((new_id, body)) = rewrite(&record, body)? {
-            let mut target = TargetRecord::new(item, new_id, body).expires_ms(record.meta.expires_ms);
+            let mut target =
+                TargetRecord::new(item, new_id, body).expires_ms(record.meta.expires_ms);
             if record.meta.created_ms > 0 {
                 target = target.created_ms(record.meta.created_ms);
             }
@@ -237,16 +238,12 @@ impl MigrationPayloadHandler for TinyMcpMigrationHandler {
             MigrationPayload::StreamPlan(request) => {
                 MigrationPayloadReply::StreamPlan(transform_stream_plan(request))
             }
-            MigrationPayload::StreamEntries(_) => {
-                MigrationPayloadReply::StreamEntries(unsupported_operation(
-                    "TinyMCP audit entries are copied unchanged",
-                ))
-            }
-            MigrationPayload::BlobTarget(_) => {
-                MigrationPayloadReply::BlobTarget(unsupported_operation(
-                    "TinyMCP has no blob migration steps",
-                ))
-            }
+            MigrationPayload::StreamEntries(_) => MigrationPayloadReply::StreamEntries(
+                unsupported_operation("TinyMCP audit entries are copied unchanged"),
+            ),
+            MigrationPayload::BlobTarget(_) => MigrationPayloadReply::BlobTarget(
+                unsupported_operation("TinyMCP has no blob migration steps"),
+            ),
         }
     }
 }
@@ -302,7 +299,10 @@ fn transform_stream_plan(request: StreamPlanRequest) -> TransformResult<Option<S
 
 #[cfg(feature = "module")]
 fn unsupported_operation<T>(message: &str) -> TransformResult<T> {
-    Err(transform_error(TransformErrorKind::UnsupportedOperation, message))
+    Err(transform_error(
+        TransformErrorKind::UnsupportedOperation,
+        message,
+    ))
 }
 
 #[cfg(feature = "module")]

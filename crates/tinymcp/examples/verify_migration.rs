@@ -10,8 +10,8 @@ use std::{
 };
 
 use serde_json::{Value, json};
-use tinybus::{BusName, Connection, broker::Broker, module::ModuleHost};
 use tinybus::transport::memory::{MemoryBus, MemoryTransport};
+use tinybus::{BusName, Connection, broker::Broker, module::ModuleHost};
 use tinymcp::{InstalledServer, names};
 use tinystoragedrivers_busproxy::{PerCallerEndpoint, serve};
 use tinystoragedrivers_client::StorageServer;
@@ -65,9 +65,7 @@ fn module_argument() -> Result<PathBuf, std::io::Error> {
         })
 }
 
-fn stage_allowlisted_module(
-    source: &Path,
-) -> VerifyResult<(tempfile::TempDir, PathBuf)> {
+fn stage_allowlisted_module(source: &Path) -> VerifyResult<(tempfile::TempDir, PathBuf)> {
     let parent = source
         .parent()
         .ok_or_else(|| std::io::Error::other("module artifact has no parent directory"))?;
@@ -123,7 +121,9 @@ async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
     let module_peer = controller
         .name_owner(names::INTERFACE)
         .await?
-        .ok_or_else(|| std::io::Error::other("compiled TinyMCP module did not claim its bus name"))?;
+        .ok_or_else(|| {
+            std::io::Error::other("compiled TinyMCP module did not claim its bus name")
+        })?;
     let migration = MigrationModuleClient::discover(&controller, &module_peer).await?;
     assert_eq!(migration.declaration().owner.as_str(), "mcp");
     Ok(SelectedModule {
@@ -147,7 +147,11 @@ async fn verify_migration_authorization(fixture: &SelectedModule) -> VerifyResul
         .call_confidential::<Value>(EXCHANGE_MEMBER, json!(17))
         .await
         .expect_err("malformed outsider input must be denied before decoding");
-    assert!(denied.to_string().contains("migration authority unavailable"));
+    assert!(
+        denied
+            .to_string()
+            .contains("migration authority unavailable")
+    );
 
     let selected = fixture.controller.proxy(
         fixture.module_peer.as_str(),
@@ -155,10 +159,7 @@ async fn verify_migration_authorization(fixture: &SelectedModule) -> VerifyResul
         MIGRATION_INTERFACE,
     )?;
     assert!(
-        selected
-            .call::<Value>(EXCHANGE_MEMBER, ())
-            .await
-            .is_err(),
+        selected.call::<Value>(EXCHANGE_MEMBER, ()).await.is_err(),
         "migration calls require confidential transport"
     );
     Ok(())
@@ -181,15 +182,11 @@ fn legacy_server() -> Value {
     })
 }
 
-async fn migrate_legacy_records(
-    migration: MigrationModuleClient,
-) -> VerifyResult<ScopedStorage> {
+async fn migrate_legacy_records(migration: MigrationModuleClient) -> VerifyResult<ScopedStorage> {
     let backend = MemoryStorage::new();
     let declaration = migration.declaration().clone();
-    let registry = Registry::compose_with_declarations(
-        std::iter::empty(),
-        std::iter::once(declaration),
-    )?;
+    let registry =
+        Registry::compose_with_declarations(std::iter::empty(), std::iter::once(declaration))?;
     registry.prepare(&backend).await?;
     let scope = Scope::new("module-tinymcp")?;
     let storage = backend.for_scope(&scope)?;
@@ -265,7 +262,10 @@ async fn assert_migrated_audit_stream(
     let entries = storage.streams().read_window("mcp.audit", 0, 16).await?;
     assert_eq!(length, expected.len() as u64);
     assert_eq!(
-        entries.into_iter().map(|entry| entry.value).collect::<Vec<_>>(),
+        entries
+            .into_iter()
+            .map(|entry| entry.value)
+            .collect::<Vec<_>>(),
         expected
     );
     assert_eq!(storage.streams().len("mcp_audit").await?, 0);
@@ -301,16 +301,13 @@ async fn verify_normal_storage_after_migration(
         .name_owner(names::INTERFACE)
         .await?
         .ok_or_else(|| std::io::Error::other("storage-bound TinyMCP did not claim its bus name"))?;
-    let proxy = controller.proxy(
-        module_peer.as_str(),
-        names::OBJECT_PATH,
-        names::INTERFACE,
-    )?;
+    let proxy = controller.proxy(module_peer.as_str(), names::OBJECT_PATH, names::INTERFACE)?;
     let installed: Vec<InstalledServer> = proxy.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(installed.len(), 1);
     assert_eq!(installed[0].server_id, "srv-1");
-    let _: tinymcp_bus::RegistrySettings =
-        proxy.call(names::methods::REGISTRY_SETTINGS_GET, ()).await?;
+    let _: tinymcp_bus::RegistrySettings = proxy
+        .call(names::methods::REGISTRY_SETTINGS_GET, ())
+        .await?;
     broker_task.abort();
     Ok(())
 }

@@ -362,11 +362,9 @@ fn the_module_can_be_used_once_every_step_has_finished() {
 #[cfg(feature = "module")]
 #[test]
 fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadata() {
-    use tinystoragedrivers_core::schema::delivery::{
-        MigrationPayload, MigrationPayloadReply,
-    };
-    use tinystoragedrivers_core::schema::{Expiry, SourceRecord};
     use tinystoragedrivers_core::Meta;
+    use tinystoragedrivers_core::schema::delivery::{MigrationPayload, MigrationPayloadReply};
+    use tinystoragedrivers_core::schema::{Expiry, SourceRecord};
 
     let meta = Meta {
         schema: 1,
@@ -452,9 +450,7 @@ fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadat
 #[cfg(feature = "module")]
 #[test]
 fn the_module_handler_reuses_the_audit_stream_name_transform() {
-    use tinystoragedrivers_core::schema::delivery::{
-        MigrationPayload, MigrationPayloadReply,
-    };
+    use tinystoragedrivers_core::schema::delivery::{MigrationPayload, MigrationPayloadReply};
 
     for (source, target) in [
         ("mcp_audit", AUDIT_STREAM),
@@ -471,6 +467,9 @@ fn the_module_handler_reuses_the_audit_stream_name_transform() {
             panic!("the audit transform returns its stream target");
         };
         assert_eq!(plan.target, target);
-        assert_eq!(plan.mode, tinystoragedrivers_core::schema::StreamMapMode::Identity);
+        assert_eq!(
+            plan.mode,
+            tinystoragedrivers_core::schema::StreamMapMode::Identity
+        );
     }
 }

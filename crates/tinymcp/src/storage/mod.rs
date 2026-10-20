@@ -24,17 +24,17 @@ mod schema;
 #[cfg(feature = "module")]
 pub use bus::BusProvider;
 pub use grant::{StorageGrant, collection_specs, grant};
+#[cfg(feature = "module")]
+pub(crate) use migrate::TinyMcpMigrationHandler;
 pub use ports::StoragePorts;
 pub use provider::{
     MemoryProvider, StorageProvider, install_provider, installed_provider, provider_installed,
 };
-#[cfg(feature = "module")]
-pub(crate) use migrate::TinyMcpMigrationHandler;
 #[cfg(test)]
 pub(crate) use schema::SCHEMA_VERSION;
-pub use schema::{AUDIT_STREAM, OWNER, storage_schema};
 #[cfg(any(feature = "module", test))]
 pub(crate) use schema::storage_schema_declaration;
+pub use schema::{AUDIT_STREAM, OWNER, storage_schema};
 pub(crate) use schema::{
     REGISTRY_CACHE, REGISTRY_INDEX, REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE,
     doc_id, write_options,

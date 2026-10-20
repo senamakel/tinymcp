@@ -69,15 +69,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
-    if info
-        .manifest
-        .provides
-        .iter()
-        .all(|provided| {
-            provided.version.interface.as_str()
-                != tinystoragedrivers_tinybus::migration::MIGRATION_INTERFACE
-        })
-    {
+    if info.manifest.provides.iter().all(|provided| {
+        provided.version.interface.as_str()
+            != tinystoragedrivers_tinybus::migration::MIGRATION_INTERFACE
+    }) {
         return Err(io::Error::other("the compiled module omits its migration interface").into());
     }
 
