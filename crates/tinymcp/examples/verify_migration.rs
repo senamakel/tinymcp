@@ -298,23 +298,17 @@ async fn verify_normal_storage_after_migration(
         Some(StorageServer::new(storage_for_peer.clone()).with_secrets(secrets.clone()))
     });
     let _served = serve(&fixture.storage_host, Arc::new(endpoint)).await?;
-    let before_owner = fixture
-        .controller
-        .name_owner(names::INTERFACE)
-        .await?;
+    let before_owner = fixture.controller.name_owner(names::INTERFACE).await?;
     assert_eq!(before_owner.as_ref(), Some(&fixture.module_peer));
     let data_dir = tempfile::tempdir()?;
     fixture
         .module_host
         .reinitialize(
             &fixture.module_name,
-        json!({"data_dir":data_dir.path().to_string_lossy()}),
+            json!({"data_dir":data_dir.path().to_string_lossy()}),
         )
         .await?;
-    let after_owner = fixture
-        .controller
-        .name_owner(names::INTERFACE)
-        .await?;
+    let after_owner = fixture.controller.name_owner(names::INTERFACE).await?;
     assert_eq!(after_owner.as_ref(), Some(&fixture.module_peer));
     let proxy = fixture.controller.proxy(
         fixture.module_peer.as_str(),
@@ -324,7 +318,10 @@ async fn verify_normal_storage_after_migration(
     let installed: Vec<InstalledServer> = proxy.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(installed.len(), 1);
     assert_eq!(installed[0].server_id, "srv-1");
-    assert!(!installed[0].enabled, "the disabled fixture remains disabled");
+    assert!(
+        !installed[0].enabled,
+        "the disabled fixture remains disabled"
+    );
     let _: tinymcp_bus::RegistrySettings = proxy
         .call(names::methods::REGISTRY_SETTINGS_GET, ())
         .await?;
