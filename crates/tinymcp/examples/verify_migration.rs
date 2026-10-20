@@ -1,6 +1,6 @@
-//! Exercises TinyMCP's owner migration contract through its compiled module.
+//! Exercises `TinyMCP`'s owner migration contract through its compiled module.
 //!
-//! The fixture uses only synthetic `MemoryStorage` data and in-process TinyBus
+//! The fixture uses only synthetic `MemoryStorage` data and in-process `TinyBus`
 //! brokers. It migrates before the host serves ordinary storage to the module.
 
 use std::{
@@ -162,10 +162,18 @@ async fn verify_migration_authorization(fixture: &SelectedModule) -> VerifyResul
         MIGRATION_OBJECT_PATH,
         MIGRATION_INTERFACE,
     )?;
-    let denied = outsider
+    let denied = match outsider
         .call_confidential::<Value>(EXCHANGE_MEMBER, json!(17))
         .await
-        .expect_err("malformed outsider input must be denied before decoding");
+    {
+        Err(error) => error,
+        Ok(_) => {
+            return Err(io::Error::other(
+                "malformed outsider input was not denied before decoding",
+            )
+            .into());
+        }
+    };
     assert!(
         denied
             .to_string()
