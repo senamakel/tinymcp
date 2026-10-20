@@ -119,7 +119,7 @@ class StorageNeedsConsumerGuardTests(unittest.TestCase):
         metadata = copy.deepcopy(fixture())
         tsd_package = next(package for package in metadata["packages"] if package["id"] == TSD_ID)
         tsd_package["source"] = "git+https://github.com/tinyhumansai/tinystoragedrivers?tag=v1.8.0#commit"
-        with self.assertRaisesRegex(RuntimeError, "canonical v1.8.0 source revision"):
+        with self.assertRaisesRegex(RuntimeError, "pinned v1.8.0 source revision"):
             guard.validate_metadata(metadata)
 
     def test_ignores_dev_only_edges_because_the_guard_is_normal_and_build(self) -> None:

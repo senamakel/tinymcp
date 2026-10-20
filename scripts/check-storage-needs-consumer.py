@@ -155,7 +155,7 @@ def validate_metadata(metadata: dict[str, Any]) -> None:
         or not source.endswith(f"#{TSD_BUS_REV}")
         or not str(tsd_package.get("version", "")).startswith("1.8.")
     ):
-        fail("TSD bus did not resolve from the canonical v1.8.0 source revision")
+        fail("TSD bus did not resolve from the pinned v1.8.0 source revision")
 
     tsd_node = node_by_id[tsd_package["id"]]
     features = tsd_node.get("features")
