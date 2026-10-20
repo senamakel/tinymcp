@@ -224,7 +224,7 @@ fn index_state(
     Ok(Some((doc_id(&[&source])?, Value::Object(body))))
 }
 
-/// Stateless owner-side adapter for the existing TinyMCP migration callbacks.
+/// Stateless owner-side adapter for the existing `TinyMCP` migration callbacks.
 #[cfg(feature = "module")]
 pub(crate) struct TinyMcpMigrationHandler;
 
@@ -233,10 +233,10 @@ impl MigrationPayloadHandler for TinyMcpMigrationHandler {
     fn transform(&self, payload: MigrationPayload) -> MigrationPayloadReply {
         match payload {
             MigrationPayload::Documents(request) => MigrationPayloadReply::Documents(
-                transform_documents(request.operation, request.version, request.records),
+                transform_documents(&request.operation, request.version, request.records),
             ),
             MigrationPayload::StreamPlan(request) => {
-                MigrationPayloadReply::StreamPlan(transform_stream_plan(request))
+                MigrationPayloadReply::StreamPlan(transform_stream_plan(&request))
             }
             MigrationPayload::StreamEntries(_) => MigrationPayloadReply::StreamEntries(
                 unsupported_operation("TinyMCP audit entries are copied unchanged"),
@@ -250,11 +250,11 @@ impl MigrationPayloadHandler for TinyMcpMigrationHandler {
 
 #[cfg(feature = "module")]
 fn transform_documents(
-    operation: String,
+    operation: &str,
     version: u32,
     records: Vec<SourceRecord>,
 ) -> TransformResult<Vec<TargetRecord>> {
-    let (item, rewrite) = match operation.as_str() {
+    let (item, rewrite) = match operation {
         SERVERS_V2_OPERATION => (SERVERS, server as Rewrite),
         SERVER_NAMES_V2_OPERATION => (SERVER_NAMES, claim as Rewrite),
         REGISTRY_CACHE_V2_OPERATION => (REGISTRY_CACHE, cached_response as Rewrite),
@@ -276,7 +276,7 @@ fn transform_documents(
 }
 
 #[cfg(feature = "module")]
-fn transform_stream_plan(request: StreamPlanRequest) -> TransformResult<Option<StreamPlan>> {
+fn transform_stream_plan(request: &StreamPlanRequest) -> TransformResult<Option<StreamPlan>> {
     if request.operation != AUDIT_V2_OPERATION {
         return unsupported_operation("unknown TinyMCP stream migration operation");
     }

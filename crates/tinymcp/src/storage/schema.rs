@@ -17,7 +17,7 @@ use super::migrate;
 pub const OWNER: &str = "mcp";
 /// The body version every collection is declared at.
 pub(crate) const SCHEMA_VERSION: u32 = 2;
-/// Version of the owner-side transform operations carried over TinyBus.
+/// Version of the owner-side transform operations carried over `TinyBus`.
 #[cfg(any(feature = "module", test))]
 pub(crate) const MIGRATION_TRANSFORM_VERSION: u32 = 1;
 #[cfg(any(feature = "module", test))]
@@ -86,7 +86,7 @@ pub fn storage_schema() -> Schema {
 /// The serializable owner declaration derived from the executable MCP schema.
 ///
 /// The operation mapping is explicit so adding a local migration step without
-/// a TinyBus transform fails closed instead of publishing incomplete metadata.
+/// a `TinyBus` transform fails closed instead of publishing incomplete metadata.
 #[cfg(any(feature = "module", test))]
 pub(crate) fn storage_schema_declaration() -> tinystoragedrivers_core::Result<SchemaDeclaration> {
     tinystoragedrivers_core::schema::declaration_from_schema(&storage_schema(), |step| {
