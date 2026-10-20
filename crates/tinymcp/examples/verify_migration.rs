@@ -9,18 +9,22 @@ use std::{
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use serde_json::{Value, json};
 use tinybus::transport::memory::MemoryTransport;
 use tinybus::{BusName, Connection, broker::Broker, module::ModuleHost};
 use tinymcp::{InstalledServer, names};
-use tinystoragedrivers_busproxy::{PerCallerEndpoint, serve};
+use tinystoragedrivers_busproxy::{
+    AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
+    HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageGrant,
+};
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::{
     CollectionSpec, MemoryStorage, Precondition, Scope, ScopedStorage, StorageBackend,
     WriteOptions,
     schema::{MigrateOptions, Registry, delivery::MigrationDeliveryClient},
 };
-use tinystoragedrivers_secrets::MemorySecrets;
+use tinystoragedrivers_secrets::{MemorySecrets, SecretStore};
 use tinystoragedrivers_tinybus::migration::{
     EXCHANGE_MEMBER, MIGRATION_INTERFACE, MIGRATION_OBJECT_PATH, MigrationModuleClient,
 };
@@ -50,8 +54,8 @@ async fn main() -> VerifyResult<()> {
         .migration
         .take()
         .ok_or_else(|| std::io::Error::other("migration client was already consumed"))?;
-    let storage = migrate_legacy_records(migration).await?;
-    verify_normal_storage_after_migration(&fixture, storage).await?;
+    let (storage, backend) = migrate_legacy_records(migration).await?;
+    verify_normal_storage_after_migration(&fixture, storage, backend).await?;
 
     println!("verified TinyMCP owner transforms through a compiled module");
     Ok(())
@@ -197,12 +201,70 @@ fn legacy_server() -> Value {
     })
 }
 
-async fn migrate_legacy_records(migration: MigrationModuleClient) -> VerifyResult<ScopedStorage> {
-    let backend = MemoryStorage::new();
+#[derive(Clone, Copy)]
+struct StorageProfile(&'static str);
+
+impl HostContext for StorageProfile {}
+
+struct MemoryStorageEnvironment {
+    backend: Arc<MemoryStorage>,
+    secrets: Arc<MemorySecrets>,
+}
+
+#[async_trait]
+impl Environment<StorageProfile> for MemoryStorageEnvironment {
+    async fn resolve(
+        &self,
+        context: &StorageProfile,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<ResolvedStorage, HostFailure> {
+        let scope = Scope::new(context.0).map_err(|_| HostFailure::Denied("invalid-test-scope"))?;
+        let storage = self
+            .backend
+            .for_scope(&scope)
+            .map_err(|_| HostFailure::Denied("test-storage-unavailable"))?;
+        let grant = StorageGrant::from_needs_with_exact_secrets(
+            tinymcp_bus::storage_needs(),
+            &GrantPolicy {
+                writable: true,
+                allow_secrets: true,
+                ..GrantPolicy::default()
+            },
+        )
+        .map_err(|_| HostFailure::Denied("invalid-test-grant"))?;
+        Ok(ResolvedStorage {
+            backend_identity: "tinymcp-migration-fixture-memory".to_owned(),
+            binding_epoch: 1,
+            canonical_scope: context.0.to_owned(),
+            grant,
+            server: Arc::new(StorageServer::new(storage).with_secrets(self.secrets.clone())),
+        })
+    }
+
+    async fn admit_write(
+        &self,
+        _context: &StorageProfile,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<(), HostFailure> {
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct NoAudit;
+
+impl AuditSink for NoAudit {
+    fn record(&self, _event: AuditEvent) {}
+}
+
+async fn migrate_legacy_records(
+    migration: MigrationModuleClient,
+) -> VerifyResult<(ScopedStorage, Arc<MemoryStorage>)> {
+    let backend = Arc::new(MemoryStorage::new());
     let declaration = migration.declaration().clone();
     let registry =
         Registry::compose_with_declarations(std::iter::empty(), std::iter::once(declaration))?;
-    registry.prepare(&backend).await?;
+    registry.prepare(backend.as_ref()).await?;
     let scope = Scope::new("module-tinymcp")?;
     let storage = backend.for_scope(&scope)?;
     storage
@@ -241,7 +303,7 @@ async fn migrate_legacy_records(migration: MigrationModuleClient) -> VerifyResul
     registry.check_ready_in(&scope, "mcp.audit")?;
     assert_migrated_server(&storage, &source.meta, expiry).await?;
     assert_migrated_audit_stream(&storage, &audit).await?;
-    Ok(storage)
+    Ok((storage, backend))
 }
 
 async fn assert_migrated_server(
@@ -291,13 +353,31 @@ async fn assert_migrated_audit_stream(
 async fn verify_normal_storage_after_migration(
     fixture: &SelectedModule,
     storage: ScopedStorage,
+    backend: Arc<MemoryStorage>,
 ) -> VerifyResult<()> {
-    let storage_for_peer = storage.clone();
-    let secrets = Arc::new(MemorySecrets::new());
-    let endpoint = PerCallerEndpoint::new(move |_sender| {
-        Some(StorageServer::new(storage_for_peer.clone()).with_secrets(secrets.clone()))
-    });
-    let _served = serve(&fixture.storage_host, Arc::new(endpoint)).await?;
+    let endpoint = GovernedStorage::new(
+        Arc::new(MemoryStorageEnvironment {
+            backend,
+            secrets: Arc::new(MemorySecrets::new()),
+        }),
+        Arc::new(NoAudit),
+        GovernedEndpointLimits::default(),
+    );
+    let registration = tinystoragedrivers_tinybus::attach_storage(
+        &fixture.module_host,
+        &fixture.storage_host,
+        endpoint,
+        tokio::runtime::Handle::current(),
+    )
+    .await
+    .map_err(|_| std::io::Error::other("governed storage service registration failed"))?;
+    let (_lease, _descriptor) = registration
+        .register_lease(
+            HostStorageContext::new(StorageProfile("module-tinymcp")),
+            fixture.module_peer.clone(),
+        )
+        .await
+        .map_err(|_| std::io::Error::other("ordinary storage lease registration failed"))?;
     let before_owner = fixture.controller.name_owner(names::INTERFACE).await?;
     assert_eq!(before_owner.as_ref(), Some(&fixture.module_peer));
     let data_dir = tempfile::tempdir()?;
