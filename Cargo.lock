@@ -1826,7 +1826,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
@@ -1862,7 +1862,8 @@ dependencies = [
 
 [[package]]
 name = "tinybus"
-version = "0.3.3"
+version = "0.3.8"
+source = "git+https://github.com/tinyhumansai/tinybus?rev=5e3c882c46b84fe319b38332123dd8acc3cd826e#5e3c882c46b84fe319b38332123dd8acc3cd826e"
 dependencies = [
  "async-trait",
  "flate2",
@@ -1885,7 +1886,8 @@ dependencies = [
 
 [[package]]
 name = "tinybus-macros"
-version = "0.3.3"
+version = "0.3.8"
+source = "git+https://github.com/tinyhumansai/tinybus?rev=5e3c882c46b84fe319b38332123dd8acc3cd826e#5e3c882c46b84fe319b38332123dd8acc3cd826e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1894,7 +1896,8 @@ dependencies = [
 
 [[package]]
 name = "tinybus-module"
-version = "0.3.3"
+version = "0.3.8"
+source = "git+https://github.com/tinyhumansai/tinybus?rev=5e3c882c46b84fe319b38332123dd8acc3cd826e#5e3c882c46b84fe319b38332123dd8acc3cd826e"
 dependencies = [
  "async-trait",
  "serde",
@@ -1929,6 +1932,7 @@ dependencies = [
  "tinystoragedrivers-client",
  "tinystoragedrivers-core",
  "tinystoragedrivers-secrets",
+ "tinystoragedrivers-tinybus",
  "tinytools",
  "tokio",
  "tokio-stream",
@@ -1960,8 +1964,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-bus"
-version = "1.8.0"
-source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
 dependencies = [
  "serde",
  "serde_json",
@@ -1970,8 +1974,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-busproxy"
-version = "1.8.0"
-source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
 dependencies = [
  "async-trait",
  "serde",
@@ -1985,8 +1989,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-client"
-version = "1.8.0"
-source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
 dependencies = [
  "async-trait",
  "serde",
@@ -1999,8 +2003,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-core"
-version = "1.8.0"
-source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
 dependencies = [
  "async-trait",
  "data-encoding",
@@ -2015,8 +2019,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-schema"
-version = "1.8.0"
-source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
 dependencies = [
  "serde",
  "serde_json",
@@ -2025,8 +2029,8 @@ dependencies = [
 
 [[package]]
 name = "tinystoragedrivers-secrets"
-version = "1.8.0"
-source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=595723e1b1cabeb3d36f0c5b6ff2e11b458e7558#595723e1b1cabeb3d36f0c5b6ff2e11b458e7558"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
 dependencies = [
  "async-trait",
  "atomicwrites",
@@ -2044,6 +2048,23 @@ dependencies = [
  "windows-permissions",
  "winsafe",
  "zeroize",
+]
+
+[[package]]
+name = "tinystoragedrivers-tinybus"
+version = "1.9.0"
+source = "git+https://github.com/tinyhumansai/tinystoragedrivers?rev=7354214b8834b71bb0acb4a7c93b3efa051001b8#7354214b8834b71bb0acb4a7c93b3efa051001b8"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "tinybus",
+ "tinybus-module",
+ "tinystoragedrivers-bus",
+ "tinystoragedrivers-busproxy",
+ "tinystoragedrivers-core",
+ "tokio",
+ "ulid",
 ]
 
 [[package]]
@@ -2828,3 +2849,23 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "tinybus"
+version = "0.1.2"
+
+[[patch.unused]]
+name = "tinybus-module"
+version = "0.1.2"
+
+[[patch.unused]]
+name = "tinybus"
+version = "0.1.2"
+
+[[patch.unused]]
+name = "tinybus-macros"
+version = "0.1.2"
+
+[[patch.unused]]
+name = "tinybus-module"
+version = "0.1.2"

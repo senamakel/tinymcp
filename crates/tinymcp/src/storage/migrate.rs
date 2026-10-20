@@ -12,6 +12,15 @@
 use serde_json::{Map, Value};
 use tinystoragedrivers_core::schema::{SourceRecord, Step, TargetRecord};
 
+#[cfg(feature = "module")]
+use tinystoragedrivers_core::schema::delivery::{
+    MigrationPayload, MigrationPayloadHandler, MigrationPayloadReply, TransformResult,
+};
+#[cfg(feature = "module")]
+use tinystoragedrivers_core::schema::{
+    StreamMapMode, StreamPlan, TransformError, TransformErrorKind,
+};
+
 use super::schema::{
     AUDIT_STREAM, REGISTRY_CACHE, REGISTRY_INDEX, REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS,
     TOOL_CACHE, doc_id,
@@ -194,6 +203,38 @@ fn index_state(
     rename(&mut body, "started_at", "started_ms");
     rename(&mut body, "synced_at", "synced_ms");
     Ok(Some((doc_id(&[&source])?, Value::Object(body))))
+}
+
+/// Stateless owner-side adapter for the existing TinyMCP migration callbacks.
+#[cfg(feature = "module")]
+pub(crate) struct TinyMcpMigrationHandler;
+
+#[cfg(feature = "module")]
+impl MigrationPayloadHandler for TinyMcpMigrationHandler {
+    fn transform(&self, payload: MigrationPayload) -> MigrationPayloadReply {
+        match payload {
+            MigrationPayload::Documents(_) => {
+                MigrationPayloadReply::Documents(unsupported_operation())
+            }
+            MigrationPayload::StreamPlan(_) => {
+                MigrationPayloadReply::StreamPlan(unsupported_operation())
+            }
+            MigrationPayload::StreamEntries(_) => {
+                MigrationPayloadReply::StreamEntries(unsupported_operation())
+            }
+            MigrationPayload::BlobTarget(_) => {
+                MigrationPayloadReply::BlobTarget(unsupported_operation())
+            }
+        }
+    }
+}
+
+#[cfg(feature = "module")]
+fn unsupported_operation<T>() -> TransformResult<T> {
+    Err(TransformError {
+        kind: TransformErrorKind::UnsupportedOperation,
+        message: "unsupported TinyMCP migration operation".to_owned(),
+    })
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@
 
 use super::*;
 
-use tinystoragedrivers_core::schema::{Item, Registry, ScopeClass};
+use tinystoragedrivers_core::schema::{Item, Registry, ScopeClass, TransformKind};
 
 #[test]
 fn the_schema_composes_under_the_mcp_owner() {
@@ -73,4 +73,63 @@ fn ids_are_escaped_keys() {
 #[test]
 fn writes_declare_the_schema_version() {
     assert_eq!(write_options().schema, SCHEMA_VERSION);
+}
+
+#[test]
+fn the_module_declaration_exports_every_real_step_and_owner_item() {
+    let schema = storage_schema();
+    let declaration = storage_schema_declaration().unwrap();
+
+    assert_eq!(declaration.owner, schema.owner);
+    assert_eq!(declaration.items, schema.items);
+    assert_eq!(declaration.steps.len(), 7);
+    let steps: Vec<_> = declaration
+        .steps
+        .iter()
+        .map(|step| {
+            (
+                step.id.as_str(),
+                step.transform.operation.as_str(),
+                step.transform.version,
+                step.transform.kind,
+            )
+        })
+        .collect();
+    assert_eq!(
+        steps,
+        [
+            ("servers_v2", "mcp.servers_v2", 1, TransformKind::Documents),
+            (
+                "server_names_v2",
+                "mcp.server_names_v2",
+                1,
+                TransformKind::Documents,
+            ),
+            (
+                "registry_cache_v2",
+                "mcp.registry_cache_v2",
+                1,
+                TransformKind::Documents,
+            ),
+            (
+                "tool_cache_v2",
+                "mcp.tool_cache_v2",
+                1,
+                TransformKind::Documents,
+            ),
+            (
+                "registry_index_v2",
+                "mcp.registry_index_v2",
+                1,
+                TransformKind::Documents,
+            ),
+            (
+                "registry_index_state_v2",
+                "mcp.registry_index_state_v2",
+                1,
+                TransformKind::Documents,
+            ),
+            ("audit_v2", "mcp.audit_v2", 1, TransformKind::Stream),
+        ]
+    );
 }

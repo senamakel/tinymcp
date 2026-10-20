@@ -358,3 +358,119 @@ fn the_module_can_be_used_once_every_step_has_finished() {
     fixture.registry.check_ready(SERVERS).unwrap();
     fixture.registry.check_ready(AUDIT_STREAM).unwrap();
 }
+
+#[cfg(feature = "module")]
+#[test]
+fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadata() {
+    use tinystoragedrivers_core::schema::delivery::{
+        MigrationPayload, MigrationPayloadReply,
+    };
+    use tinystoragedrivers_core::schema::{Expiry, SourceRecord};
+    use tinystoragedrivers_core::Meta;
+
+    let meta = Meta {
+        schema: 1,
+        created_ms: 1234,
+        updated_ms: 5678,
+        expires_ms: Some(90_000),
+    };
+    let cases = [
+        (
+            super::schema::SERVERS_V2_OPERATION,
+            "srv-1",
+            v1_server(),
+            SERVERS,
+            "srv-1",
+            "installed_ms",
+        ),
+        (
+            super::schema::SERVER_NAMES_V2_OPERATION,
+            "old-claim",
+            json!({"qualified_name":"@acme/files", "server_id":"srv-1", "claimed_at":5000}),
+            SERVER_NAMES,
+            "@acme%2Ffiles",
+            "claimed_ms",
+        ),
+        (
+            super::schema::REGISTRY_CACHE_V2_OPERATION,
+            "digest-1",
+            json!({"cache_key":"official:search", "body_json":"{\"servers\":[]}", "cached_at":9000}),
+            REGISTRY_CACHE,
+            "official:search",
+            "cached_ms",
+        ),
+        (
+            super::schema::TOOL_CACHE_V2_OPERATION,
+            "digest-2",
+            json!({"server_key":"static:docs", "tools":[], "cached_at":7000}),
+            TOOL_CACHE,
+            "static:docs",
+            "cached_ms",
+        ),
+        (
+            super::schema::REGISTRY_INDEX_V2_OPERATION,
+            "legacy-index",
+            json!({"source":"official", "qualified_name":"@acme/files", "record_json":"{}", "synced_at":8000}),
+            REGISTRY_INDEX,
+            "official/@acme%2Ffiles",
+            "synced_ms",
+        ),
+        (
+            super::schema::REGISTRY_INDEX_STATE_V2_OPERATION,
+            "legacy-state",
+            json!({"source":"official", "started_at":1000, "synced_at":2000}),
+            REGISTRY_INDEX_STATE,
+            "official",
+            "started_ms",
+        ),
+    ];
+
+    for (operation, id, body, collection, target_id, migrated_time_field) in cases {
+        let reply = super::TinyMcpMigrationHandler.transform(MigrationPayload::Documents(
+            tinystoragedrivers_core::schema::DocumentsTransformRequest {
+                operation: operation.to_owned(),
+                version: super::schema::MIGRATION_TRANSFORM_VERSION,
+                records: vec![SourceRecord {
+                    id: id.to_owned(),
+                    body,
+                    meta,
+                }],
+            },
+        ));
+        let MigrationPayloadReply::Documents(Ok(records)) = reply else {
+            panic!("the selected owner transform returns document records");
+        };
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].collection, collection);
+        assert_eq!(records[0].id, target_id);
+        assert_eq!(records[0].created_ms, Some(meta.created_ms));
+        assert_eq!(records[0].expires, Expiry::At(meta.expires_ms.unwrap()));
+        assert!(records[0].body.get(migrated_time_field).is_some());
+    }
+}
+
+#[cfg(feature = "module")]
+#[test]
+fn the_module_handler_reuses_the_audit_stream_name_transform() {
+    use tinystoragedrivers_core::schema::delivery::{
+        MigrationPayload, MigrationPayloadReply,
+    };
+
+    for (source, target) in [
+        ("mcp_audit", AUDIT_STREAM),
+        ("mcp_audit/2024/09", "mcp.audit/2024/09"),
+    ] {
+        let reply = super::TinyMcpMigrationHandler.transform(MigrationPayload::StreamPlan(
+            tinystoragedrivers_core::schema::StreamPlanRequest {
+                operation: super::schema::AUDIT_V2_OPERATION.to_owned(),
+                version: super::schema::MIGRATION_TRANSFORM_VERSION,
+                source: source.to_owned(),
+            },
+        ));
+        let MigrationPayloadReply::StreamPlan(Ok(plan)) = reply else {
+            panic!("the audit transform returns its stream target");
+        };
+        assert_eq!(plan.target, target);
+        assert_eq!(plan.mode, tinystoragedrivers_core::schema::StreamMapMode::Identity);
+    }
+}
