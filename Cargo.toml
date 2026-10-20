@@ -35,7 +35,7 @@ tinymcp-bus = { path = "crates/tinymcp-bus" }
 # defaults disabled: tinymcp-bus carries declarations only, not transport. Pin
 # the released v1.8.0 fork source by immutable commit; the canonical URL keeps
 # this package identity unified with hosts and the other TSD crates.
-tinystoragedrivers-bus = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8", default-features = false }
+tinystoragedrivers-bus = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4", default-features = false }
 # The TinyBox bus contract, used by the jailed stdio launcher to start MCP
 # servers inside TinyBox's native jail. Contract types only: the module reaches
 # TinyBox through the bus and never links its implementation.
@@ -120,17 +120,17 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 # store call them. Match every TSD crate to the same v1.9.0 source revision.
 # This crate links no database: the
 # host picks the backend.
-tinystoragedrivers-core = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8", features = ["blocking"] }
+tinystoragedrivers-core = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4", features = ["blocking"] }
 # The `SecretStore` port: server environment values and OAuth bundles are kept
 # there, never in a document. Same source revision as the core.
-tinystoragedrivers-secrets = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8" }
+tinystoragedrivers-secrets = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4" }
 # The module-side storage bus: `connect_storage` over the module's TinyBus
 # connection, giving the same port traits the host serves. Used only by the
 # `module` feature (a cdylib reaches storage through the host, never a file).
-tinystoragedrivers-busproxy = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8" }
-tinystoragedrivers-client = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8" }
+tinystoragedrivers-busproxy = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4" }
+tinystoragedrivers-client = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4" }
 # The owner-side TinyBus schema and migration service.
-tinystoragedrivers-tinybus = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "7354214b8834b71bb0acb4a7c93b3efa051001b8", features = ["migration-delivery"] }
+tinystoragedrivers-tinybus = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "d8ebef1a98df3918ed3b80719fdc1414ee20f7a4", features = ["migration-delivery"] }
 # Locating a user's home directory, to find the version-manager shim
 # directories a desktop launch's stripped PATH leaves out.
 dirs = "7"
