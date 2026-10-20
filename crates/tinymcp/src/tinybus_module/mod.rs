@@ -30,22 +30,13 @@ mod service;
 pub use config::ModuleConfig;
 pub use service::McpService;
 
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::sync::Arc;
 use tinybus::{Connection, Result as TinyBusResult};
 use tinybus_module::ModuleSetupContext;
 use tinymcp_bus::names;
 
 use crate::registry::SupervisorConfig;
 use crate::storage::{TinyMcpMigrationHandler, storage_schema_declaration};
-
-type ModuleSetupFuture = Pin<Box<dyn Future<Output = TinyBusResult<()>> + Send>>;
 
 /// Builds the service and serves it.
 ///
@@ -80,35 +71,20 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
     setup_over_installed_storage(connection, config).await
 }
 
-/// Builds per-instance setup state so the migration callback is registered
-/// once and remains live across configured reinitialization.
-fn setup_factory()
--> impl Fn(ModuleSetupContext, ModuleConfig) -> ModuleSetupFuture + Send + Sync + 'static {
-    let migration_registered = Arc::new(AtomicBool::new(false));
-    let handler = Arc::new(TinyMcpMigrationHandler);
-    move |context, config| {
-        let migration_registered = Arc::clone(&migration_registered);
-        let handler = Arc::clone(&handler);
-        Box::pin(async move {
-            if context.trusted_host().is_none() {
-                return Err(tinybus::Error::failed(
-                    "trusted migration host binding unavailable",
-                ));
-            }
-            if !migration_registered.load(Ordering::Acquire) {
-                let declaration = storage_schema_declaration()
-                    .map_err(|_| tinybus::Error::failed("TinyMCP migration schema unavailable"))?;
-                tinystoragedrivers_tinybus::migration::serve_module_migration(
-                    &context,
-                    declaration,
-                    handler,
-                )
-                .await?;
-                migration_registered.store(true, Ordering::Release);
-            }
-            setup(context.connection().clone(), config).await
-        })
-    }
+/// Registers module-owned migration transforms before ordinary storage setup.
+pub(super) async fn setup_with_context(
+    context: ModuleSetupContext,
+    config: ModuleConfig,
+) -> TinyBusResult<()> {
+    let declaration = storage_schema_declaration()
+        .map_err(|_| tinybus::Error::failed("TinyMCP migration schema unavailable"))?;
+    tinystoragedrivers_tinybus::migration::serve_module_migration(
+        &context,
+        declaration,
+        Arc::new(TinyMcpMigrationHandler),
+    )
+    .await?;
+    setup(context.connection().clone(), config).await
 }
 
 /// The host-storage provider to install for `config`, if one can be had.
@@ -214,7 +190,7 @@ macro_rules! export_module {
 }
 
 export_module! {
-    setup_factory_with_context = setup_factory,
+    setup_with_context = setup_with_context,
     config = ModuleConfig,
     // More than one, because a tool call on one server must not wait behind a
     // slow call on another: these are third-party endpoints and subprocesses,
