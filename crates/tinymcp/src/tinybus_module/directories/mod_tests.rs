@@ -180,7 +180,6 @@ async fn conflicting_open_is_rejected_while_transition_is_pending(
 }
 
 fn config_in(dir: &std::path::Path) -> ModuleConfig {
-            storage_descriptor: None,
     ModuleConfig {
             storage_descriptor: None,
         data_dir: Some(dir.to_path_buf()),
