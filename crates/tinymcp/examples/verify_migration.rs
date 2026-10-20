@@ -16,7 +16,7 @@ use tinybus::{BusName, Connection, broker::Broker, module::ModuleHost};
 use tinymcp::{InstalledServer, names};
 use tinystoragedrivers_busproxy::{
     AuditEvent, AuditSink, Environment, GovernedEndpointLimits, GovernedStorage, GrantPolicy,
-    HostContext, HostFailure, HostStorageContext, PerCallerEndpoint, ResolvedStorage, StorageGrant,
+    HostContext, HostFailure, HostStorageContext, ResolvedStorage, StorageGrant,
 };
 use tinystoragedrivers_client::StorageServer;
 use tinystoragedrivers_core::{
@@ -354,22 +354,12 @@ async fn verify_normal_storage_after_migration(
     fixture: &SelectedModule,
     backend: Arc<MemoryStorage>,
 ) -> VerifyResult<()> {
-    let scope = Scope::new("module-tinymcp")?;
-    let legacy_storage = backend.for_scope(&scope)?;
     let secrets = Arc::new(MemorySecrets::new());
-    let allowed_module = fixture.module_peer.clone();
-    let legacy_secrets = Arc::clone(&secrets);
-    let legacy_endpoint = PerCallerEndpoint::new(move |sender| {
-        (sender == &allowed_module).then(|| {
-            StorageServer::new(legacy_storage.clone()).with_secrets(legacy_secrets.clone())
-        })
-    });
     let endpoint = GovernedStorage::new(
         Arc::new(MemoryStorageEnvironment { backend, secrets }),
         Arc::new(NoAudit),
         GovernedEndpointLimits::default(),
-    )
-    .with_legacy_endpoint(Arc::new(legacy_endpoint));
+    );
     let registration = tinystoragedrivers_tinybus::attach_storage(
         &fixture.module_host,
         &fixture.storage_host,
