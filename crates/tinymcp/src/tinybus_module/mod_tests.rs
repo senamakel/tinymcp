@@ -3276,44 +3276,48 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
 
     let info = host
         .attach_linked_with_setup(
-        test_linked_module().unwrap(),
-        serde_json::to_value(ModuleConfig::default()).unwrap(),
-        move |connection| async move {
-            let peer = connection
-                .unique_name()
-                .ok_or_else(|| tinybus::Error::failed("module has no assigned peer"))?;
-            let (lease, descriptor) = registration_for_setup
-                .register_lease(HostStorageContext::new(BoundStorageContext), peer)
-                .await
-                .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
-            let provider =
-                crate::storage::BusProvider::connect_bound(connection.clone(), descriptor.clone())
+            test_linked_module().unwrap(),
+            serde_json::to_value(ModuleConfig::default()).unwrap(),
+            move |connection| async move {
+                let peer = connection
+                    .unique_name()
+                    .ok_or_else(|| tinybus::Error::failed("module has no assigned peer"))?;
+                let (lease, descriptor) = registration_for_setup
+                    .register_lease(HostStorageContext::new(BoundStorageContext), peer)
                     .await
-                    .map_err(|_| {
-                        tinybus::Error::failed("module could not connect its storage lease")
-                    })?;
-            let ports =
-                crate::storage::StorageProvider::ports_for(&provider, Path::new("module-data"))
-                    .map_err(|_| tinybus::Error::failed("module storage ports were unavailable"))?;
-            ports
-                .prepare()
-                .map_err(|_| tinybus::Error::failed("module storage ports could not prepare"))?;
-            prepared_tx
-                .send(())
-                .map_err(|()| tinybus::Error::failed("storage test observer was dropped"))?;
-            lease_tx
-                .send(lease)
-                .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
+                    .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
+                let provider = crate::storage::BusProvider::connect_bound(
+                    connection.clone(),
+                    descriptor.clone(),
+                )
+                .await
+                .map_err(|_| {
+                    tinybus::Error::failed("module could not connect its storage lease")
+                })?;
+                let ports =
+                    crate::storage::StorageProvider::ports_for(&provider, Path::new("module-data"))
+                        .map_err(|_| {
+                            tinybus::Error::failed("module storage ports were unavailable")
+                        })?;
+                ports.prepare().map_err(|_| {
+                    tinybus::Error::failed("module storage ports could not prepare")
+                })?;
+                prepared_tx
+                    .send(())
+                    .map_err(|()| tinybus::Error::failed("storage test observer was dropped"))?;
+                lease_tx
+                    .send(lease)
+                    .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
 
-            let config = ModuleConfig {
-                storage_descriptor: Some(descriptor),
-                ..Default::default()
-            };
-            super::setup(connection, config).await
-        },
-    )
-    .await
-    .unwrap();
+                let config = ModuleConfig {
+                    storage_descriptor: Some(descriptor),
+                    ..Default::default()
+                };
+                super::setup(connection, config).await
+            },
+        )
+        .await
+        .unwrap();
     host.ensure_ready(info.manifest.bus_name.as_str())
         .await
         .unwrap();
@@ -3324,17 +3328,16 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
         .unwrap();
     let lease = lease_rx.await.unwrap();
     let proxy = controller
-        .proxy(
-            names::INTERFACE,
-            names::OBJECT_PATH,
-            names::INTERFACE,
-        )
+        .proxy(names::INTERFACE, names::OBJECT_PATH, names::INTERFACE)
         .unwrap();
     let has_state: bool = proxy
         .call(names::methods::HAS_STORED_STATE, ("bound-route-check",))
         .await
         .unwrap();
-    assert!(!has_state, "a prepared storage scope contains no MCP records");
+    assert!(
+        !has_state,
+        "a prepared storage scope contains no MCP records"
+    );
     host.shutdown(Duration::from_secs(2)).await;
     drop(lease);
     registration.shutdown().await.unwrap();
