@@ -10,7 +10,7 @@ use std::{
 };
 
 use serde_json::{Value, json};
-use tinybus::transport::memory::{MemoryBus, MemoryTransport};
+use tinybus::transport::memory::MemoryTransport;
 use tinybus::{BusName, Connection, broker::Broker, module::ModuleHost};
 use tinymcp::{InstalledServer, names};
 use tinystoragedrivers_busproxy::{PerCallerEndpoint, serve};
@@ -29,7 +29,6 @@ type VerifyResult<T> = Result<T, Box<dyn Error>>;
 
 struct SelectedModule {
     _staging: tempfile::TempDir,
-    broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
     controller: Connection,
     outsider: Connection,
     _module_host: ModuleHost,
@@ -49,7 +48,6 @@ async fn main() -> VerifyResult<()> {
     verify_normal_storage_after_migration(&source, storage).await?;
 
     println!("verified TinyMCP owner transforms through a compiled module");
-    fixture.broker_task.abort();
     Ok(())
 }
 
@@ -108,9 +106,7 @@ async fn connect_peer(broker: &Broker, selected: bool) -> tinybus::Result<Connec
 
 async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
     let (staging, staged) = stage_allowlisted_module(source)?;
-    let bus = MemoryBus::new();
     let broker = Broker::new_restricted_module_control();
-    let broker_task = broker.clone().spawn(bus);
     let controller = connect_peer(&broker, true).await?;
     let outsider = connect_peer(&broker, false).await?;
     let module_host = ModuleHost::new(broker);
@@ -128,7 +124,6 @@ async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
     assert_eq!(migration.declaration().owner.as_str(), "mcp");
     Ok(SelectedModule {
         _staging: staging,
-        broker_task,
         controller,
         outsider,
         _module_host: module_host,
@@ -276,10 +271,8 @@ async fn verify_normal_storage_after_migration(
     source: &Path,
     storage: ScopedStorage,
 ) -> VerifyResult<()> {
-    let bus = MemoryBus::new();
     let broker = Broker::new_restricted_module_control();
-    let broker_task = broker.clone().spawn(bus.clone());
-    let host_connection = Connection::connect(bus.connect().await?).await?;
+    let host_connection = connect_peer(&broker, false).await?;
     let storage_for_peer = storage.clone();
     let secrets = Arc::new(MemorySecrets::new());
     let endpoint = PerCallerEndpoint::new(move |_sender| {
@@ -308,6 +301,5 @@ async fn verify_normal_storage_after_migration(
     let _: tinymcp_bus::RegistrySettings = proxy
         .call(names::methods::REGISTRY_SETTINGS_GET, ())
         .await?;
-    broker_task.abort();
     Ok(())
 }
