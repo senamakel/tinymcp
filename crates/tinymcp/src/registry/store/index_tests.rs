@@ -64,7 +64,13 @@ fn a_sync_records_each_page_and_its_cursor() {
 #[test]
 fn a_transactional_index_write_preserves_the_current_schema_version() {
     let store = store();
-    assert!(store.ports.documents.capabilities().contains(Capability::Transactions));
+    assert!(
+        store
+            .ports
+            .documents
+            .capabilities()
+            .contains(Capability::Transactions)
+    );
 
     store
         .store_index_page(SOURCE, &[row("a/one", "a/one one", "first")], None)
