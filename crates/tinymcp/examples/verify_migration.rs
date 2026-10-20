@@ -109,7 +109,7 @@ async fn connect_peer(broker: &Broker, selected: bool) -> tinybus::Result<Connec
 }
 
 async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
-    let (_staging, staged) = stage_allowlisted_module(source)?;
+    let (staging, staged) = stage_allowlisted_module(source)?;
     let bus = MemoryBus::new();
     let broker = Broker::new_restricted_module_control();
     let broker_task = broker.clone().spawn(bus);
@@ -287,7 +287,7 @@ async fn verify_normal_storage_after_migration(
     });
     let _served = serve(&host_connection, Arc::new(endpoint)).await?;
     let controller = connect_peer(&broker, true).await?;
-    let (staging, staged) = stage_allowlisted_module(source)?;
+    let (_staging, staged) = stage_allowlisted_module(source)?;
     let modules = ModuleHost::new(broker);
     let data_dir = tempfile::tempdir()?;
     let info = modules.load_file_with_config(
