@@ -148,15 +148,11 @@ pub(super) async fn setup_over_installed_storage(
     let supervisor = SupervisorConfig::default();
     let service = Arc::new(
         McpService::new_with_stdio(&config, stdio_launchers(Some(&connection), &config.client))
-            .map_err(|error| {
-                tinybus::Error::failed(format!("tinymcp could not start: {error}"))
-            })?
+            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
             .with_maintenance(supervisor.clone())
             .await
             .with_opener(connection.clone(), &config, supervisor)
-            .map_err(|error| {
-                tinybus::Error::failed(format!("tinymcp could not start: {error}"))
-            })?,
+            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
     );
 
     service.register_root();
@@ -164,9 +160,7 @@ pub(super) async fn setup_over_installed_storage(
     connection
         .serve_at(names::OBJECT_PATH.try_into()?, service.dispatch_interface())
         .await?;
-    connection
-        .request_name(names::INTERFACE)
-        .await?;
+    connection.request_name(names::INTERFACE).await?;
 
     Ok(())
 }
