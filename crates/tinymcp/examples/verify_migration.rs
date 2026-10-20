@@ -310,6 +310,9 @@ async fn verify_normal_storage_after_migration(
         .await?;
     let after_owner = fixture.controller.name_owner(names::INTERFACE).await?;
     assert_eq!(after_owner.as_ref(), Some(&fixture.module_peer));
+    let migration =
+        MigrationModuleClient::discover(&fixture.controller, &fixture.module_peer).await?;
+    assert_eq!(migration.declaration().owner.as_str(), "mcp");
     let proxy = fixture.controller.proxy(
         fixture.module_peer.as_str(),
         names::OBJECT_PATH,
