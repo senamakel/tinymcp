@@ -13,12 +13,13 @@
 
 use std::io;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tinybus::Connection;
 use tinybus::broker::Broker;
 use tinybus::module::ModuleHost;
-use tinybus::transport::memory::MemoryBus;
+use tinybus::transport::memory::{MemoryBus, MemoryTransport};
 use tinymcp::{ConnectedServerOverview, InstalledServer, McpTool, names};
 
 /// How long to wait for the module to claim its name.
@@ -29,11 +30,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let module = module_argument()?;
 
     let bus = MemoryBus::new();
-    let broker = Broker::new();
+    let broker = Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker.attach_module_controller(Arc::new(broker_transport))?;
+    let controller = Connection::connect(Box::new(controller_transport)).await?;
     let broker_task = broker.spawn(bus.clone());
 
     let module_host = ModuleHost::new(broker);
     let info = module_host.load_file(&module)?;
+    module_host
+        .ensure_ready(info.manifest.bus_name.as_str())
+        .await?;
 
     if info.name != env!("CARGO_PKG_NAME") {
         return Err(io::Error::other(format!(
@@ -62,8 +69,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
+    if info
+        .manifest
+        .provides
+        .iter()
+        .all(|provided| {
+            provided.version.interface.as_str()
+                != tinystoragedrivers_tinybus::migration::MIGRATION_INTERFACE
+        })
+    {
+        return Err(io::Error::other("the compiled module omits its migration interface").into());
+    }
 
-    let client = Connection::connect(bus.connect().await?).await?;
+    let client = controller;
 
     // The module claims its name during setup, which races this connect.
     tokio::time::timeout(CLAIM_TIMEOUT, async {

@@ -32,9 +32,11 @@ pub use service::McpService;
 
 use std::sync::Arc;
 use tinybus::{Connection, Result as TinyBusResult};
+use tinybus_module::ModuleSetupContext;
 use tinymcp_bus::names;
 
 use crate::registry::SupervisorConfig;
+use crate::storage::{TinyMcpMigrationHandler, storage_schema_declaration};
 
 /// Builds the service and serves it.
 ///
@@ -67,6 +69,22 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
         crate::storage::install_provider(provider);
     }
     setup_over_installed_storage(connection, config).await
+}
+
+/// Registers module-owned migration transforms before ordinary storage setup.
+pub(super) async fn setup_with_context(
+    context: ModuleSetupContext,
+    config: ModuleConfig,
+) -> TinyBusResult<()> {
+    let declaration = storage_schema_declaration()
+        .map_err(|_| tinybus::Error::failed("TinyMCP migration schema unavailable"))?;
+    tinystoragedrivers_tinybus::migration::serve_module_migration(
+        &context,
+        declaration,
+        Arc::new(TinyMcpMigrationHandler),
+    )
+    .await?;
+    setup(context.connection().clone(), config).await
 }
 
 /// The host-storage provider to install for `config`, if one can be had.
@@ -172,13 +190,13 @@ macro_rules! export_module {
 }
 
 export_module! {
-    setup = setup,
+    setup_with_context = setup_with_context,
     config = ModuleConfig,
     // More than one, because a tool call on one server must not wait behind a
     // slow call on another: these are third-party endpoints and subprocesses,
     // and one of them being slow is routine.
     worker_threads = 4,
-    provides = ["ai.tinyhumans.tinymcp.Mcp"],
+    provides = ["ai.tinyhumans.tinymcp.Mcp", "org.tinystoragedrivers.Migration"],
     methods = [
         "RegistrySearch",
         "RegistrySearchCurated",
