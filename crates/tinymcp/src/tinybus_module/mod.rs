@@ -63,7 +63,12 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
     let provider = if crate::storage::provider_installed() {
         None
     } else {
-        host_storage_for(connection.clone(), &config).await?
+        host_storage_for(connection.clone(), &config)
+            .await
+            .map_err(|error| {
+                eprintln!("diagnostic setup stage host_storage_for failed: {error}");
+                error
+            })?
     };
     if let Some(provider) = provider {
         crate::storage::install_provider(provider);
@@ -78,13 +83,21 @@ pub(super) async fn setup_with_context(
 ) -> TinyBusResult<()> {
     let declaration = storage_schema_declaration()
         .map_err(|_| tinybus::Error::failed("TinyMCP migration schema unavailable"))?;
-    tinystoragedrivers_tinybus::migration::serve_module_migration(
+    if let Err(error) = tinystoragedrivers_tinybus::migration::serve_module_migration(
         &context,
         declaration,
         Arc::new(TinyMcpMigrationHandler),
     )
-    .await?;
-    setup(context.connection().clone(), config).await
+    .await
+    {
+        eprintln!("diagnostic setup stage serve_module_migration failed: {error}");
+        return Err(error);
+    }
+    if let Err(error) = setup(context.connection().clone(), config).await {
+        eprintln!("diagnostic setup stage storage setup failed: {error}");
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// The host-storage provider to install for `config`, if one can be had.
@@ -148,19 +161,35 @@ pub(super) async fn setup_over_installed_storage(
     let supervisor = SupervisorConfig::default();
     let service = Arc::new(
         McpService::new_with_stdio(&config, stdio_launchers(Some(&connection), &config.client))
-            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
+            .map_err(|error| {
+                eprintln!("diagnostic setup stage McpService construction failed: {error}");
+                tinybus::Error::failed(format!("tinymcp could not start: {error}"))
+            })?
             .with_maintenance(supervisor.clone())
             .await
             .with_opener(connection.clone(), &config, supervisor)
-            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
+            .map_err(|error| {
+                eprintln!("diagnostic setup stage directory opener failed: {error}");
+                tinybus::Error::failed(format!("tinymcp could not start: {error}"))
+            })?,
     );
 
     service.register_root();
 
     connection
         .serve_at(names::OBJECT_PATH.try_into()?, service.dispatch_interface())
-        .await?;
-    connection.request_name(names::INTERFACE).await?;
+        .await
+        .map_err(|error| {
+            eprintln!("diagnostic setup stage root interface serve failed: {error}");
+            error
+        })?;
+    connection
+        .request_name(names::INTERFACE)
+        .await
+        .map_err(|error| {
+            eprintln!("diagnostic setup stage primary name claim failed: {error}");
+            error
+        })?;
 
     Ok(())
 }
