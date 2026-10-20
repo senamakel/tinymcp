@@ -460,7 +460,6 @@ async fn verify_normal_storage_after_migration(
             .reinitialize(
                 &fixture.module_name,
                 json!({
-                    "data_dir": data_dir.path().to_string_lossy(),
                     "storage_descriptor": malformed_descriptor,
                 }),
             )
@@ -494,7 +493,6 @@ async fn verify_normal_storage_after_migration(
             .reinitialize(
                 &fixture.module_name,
                 json!({
-                    "data_dir": data_dir.path().to_string_lossy(),
                     "storage_descriptor": revoked_descriptor,
                 }),
             )
@@ -506,5 +504,42 @@ async fn verify_normal_storage_after_migration(
         proxy.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(after_revoked.len(), 1);
     assert_eq!(after_revoked[0].server_id, "srv-1");
+
+    fixture
+        .module_host
+        .reinitialize(
+            &fixture.module_name,
+            json!({"storage_descriptor": descriptor}),
+        )
+        .await?;
+    let no_root_migration =
+        MigrationModuleClient::discover(&fixture.controller, &fixture.module_peer).await?;
+    assert_eq!(no_root_migration.declaration().owner.as_str(), "mcp");
+    let owner_after_no_root = fixture.controller.name_owner(names::INTERFACE).await?;
+    assert_eq!(owner_after_no_root.as_ref(), Some(&fixture.module_peer));
+    let no_root_proxy = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        names::OBJECT_PATH,
+        names::INTERFACE,
+    )?;
+    let _: tinymcp_bus::RegistrySettings = no_root_proxy
+        .call(names::methods::REGISTRY_SETTINGS_GET, ())
+        .await?;
+    let opened_dir = tempfile::tempdir()?;
+    let opened_path: String = no_root_proxy
+        .call_confidential(
+            names::methods::OPEN,
+            (opened_dir.path().to_string_lossy().to_string(),),
+        )
+        .await?;
+    let opened = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        opened_path.as_str(),
+        names::INTERFACE,
+    )?;
+    let opened_installed: Vec<InstalledServer> =
+        opened.call(names::methods::INSTALLED_LIST, ()).await?;
+    assert_eq!(opened_installed.len(), 1);
+    assert_eq!(opened_installed[0].server_id, "srv-1");
     Ok(())
 }

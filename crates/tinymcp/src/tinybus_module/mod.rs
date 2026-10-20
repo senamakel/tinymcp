@@ -53,11 +53,6 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
         let provider = crate::storage::BusProvider::connect_bound(connection.clone(), descriptor)
             .await
             .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?;
-        if config.data_dir.is_none() {
-            return Err(tinybus::Error::failed(
-                "tinymcp host storage descriptor requires a data directory",
-            ));
-        }
         return setup_with_provider(connection, config, Arc::new(provider)).await;
     }
 
