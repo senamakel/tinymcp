@@ -259,7 +259,7 @@ fn an_absent_configuration_decodes_to_a_working_default() {
 #[test]
 fn a_configuration_round_trips() {
     let config = ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some("/data/tinymcp".into()),
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -339,7 +339,7 @@ fn a_service_with_a_data_directory_creates_its_stores() {
     let directory = tempfile::tempdir().unwrap();
 
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig::default(),
     })
@@ -362,7 +362,7 @@ fn a_service_with_a_data_directory_creates_its_stores() {
 #[test]
 fn a_service_registers_the_statically_declared_servers() {
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -384,7 +384,7 @@ fn a_service_reopens_an_existing_store() {
     let directory = tempfile::tempdir().unwrap();
 
     let first = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig::default(),
     })
@@ -404,7 +404,7 @@ fn a_service_reopens_an_existing_store() {
     drop(first);
 
     let second = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig::default(),
     })
@@ -500,7 +500,7 @@ async fn catalog() -> (String, Arc<AtomicUsize>) {
 /// A service over a temporary workspace, browsing `catalog_base`.
 fn service_at(directory: &std::path::Path, catalog_base: &str) -> McpService {
     McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(directory.to_path_buf()),
         client: McpClientConfig {
             registry_auth: McpRegistryAuthConfig {
@@ -988,7 +988,7 @@ async fn installing_and_connecting_with_a_bad_handle_is_refused_before_anything_
 #[tokio::test]
 async fn the_static_list_names_what_the_host_declared() {
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1010,7 +1010,7 @@ async fn the_static_list_names_what_the_host_declared() {
 #[tokio::test]
 async fn static_server_summaries_keep_legacy_fields_and_redact_endpoint_secrets() {
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1441,7 +1441,7 @@ async fn static_tool_call_redacts_the_configured_credential_before_bus_return() 
     );
     let endpoint = serve(app).await;
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1483,7 +1483,7 @@ async fn static_tool_call_redacts_the_configured_credential_before_bus_return() 
 async fn static_tool_metadata_redacts_configured_credentials_before_bus_return() {
     let credential = "mcp-static-metadata-secret-731";
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1550,7 +1550,7 @@ async fn classified_static_call_scrubs_rendered_success_and_envelope() {
     );
     let endpoint = serve(app).await;
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1602,7 +1602,7 @@ async fn classified_static_call_preserves_unauthorized_oauth_signals() {
     );
     let endpoint = serve(app).await;
     let service = McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1966,7 +1966,7 @@ async fn static_cached_tools_survive_service_reopen_without_dialling() {
     let directory = tempfile::tempdir().unwrap();
     let (url, hits) = mock_mcp_server_counted().await;
     let config = ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -2059,7 +2059,7 @@ async fn service_with_connected_app_server(directory: &std::path::Path, url: &st
 /// authenticated with `token`.
 fn service_with_static_app_server(url: &str, token: &str) -> McpService {
     McpService::new(&ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -2622,7 +2622,7 @@ async fn a_module_comes_up_without_waiting_for_a_server_that_never_answers() {
         super::setup_over_installed_storage(
             in_process_connection().await,
             ModuleConfig {
-            storage_descriptor: None,
+                storage_descriptor: None,
                 data_dir: Some(directory.path().to_path_buf()),
                 client: McpClientConfig::default(),
             },
@@ -3053,7 +3053,7 @@ async fn a_module_without_a_data_directory_runs_without_host_storage() {
     );
 
     let config = ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(std::env::temp_dir()),
         ..ModuleConfig::default()
     };

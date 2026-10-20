@@ -187,7 +187,7 @@ async fn conflicting_open_is_rejected_while_transition_is_pending(
 
 fn config_in(dir: &std::path::Path) -> ModuleConfig {
     ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         data_dir: Some(dir.to_path_buf()),
         ..ModuleConfig::default()
     }
@@ -366,7 +366,7 @@ async fn reconfiguring_the_load_time_directory_keeps_the_root_opener() {
         mock_static_server("beta provider").await,
     );
     let config = ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         client: configured_client("alpha", &alpha_url),
         ..config_in(root_dir.path())
     };
@@ -522,7 +522,7 @@ async fn root_transition_status_is_nonblocking_before_tree_writer_registration()
     let alpha_url = mock_static_server_with_gate("alpha provider", Some(Arc::clone(&gate))).await;
     let beta_url = mock_static_server("beta provider").await;
     let config = ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         client: configured_client("alpha", &alpha_url),
         ..config_in(root_dir.path())
     };
@@ -939,7 +939,7 @@ async fn closing_the_root_resets_its_configuration_and_keeps_the_opener_alive() 
     let root_dir = tempfile::tempdir().unwrap();
     let endpoint = mock_static_server("signed-in provider").await;
     let config = ModuleConfig {
-            storage_descriptor: None,
+        storage_descriptor: None,
         client: configured_client("signed-in", &endpoint),
         ..config_in(root_dir.path())
     };

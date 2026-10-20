@@ -56,13 +56,6 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
         return setup_with_provider(connection, config, Arc::new(provider)).await;
     }
 
-    if let Some(descriptor) = config.storage_descriptor.clone() {
-        let provider = Arc::new(
-            crate::storage::BusProvider::connect_bound(connection.clone(), descriptor).await?,
-        );
-        return setup_with_provider(connection, config, provider).await;
-    }
-
     // A module that keeps state reaches the host's storage over the bus; the
     // host binds the scope and the grant. A host that linked the module into
     // its own process and installed a provider has already chosen. Failing
@@ -159,12 +152,7 @@ pub(super) async fn setup_over_installed_storage(
     connection: Connection,
     config: ModuleConfig,
 ) -> TinyBusResult<()> {
-    setup_with_provider(
-        connection,
-        config,
-        crate::storage::installed_provider(),
-    )
-    .await
+    setup_with_provider(connection, config, crate::storage::installed_provider()).await
 }
 
 async fn setup_with_provider(
@@ -179,11 +167,11 @@ async fn setup_with_provider(
             provider.clone(),
             stdio_launchers(Some(&connection), &config.client),
         )
-            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
-            .with_maintenance(supervisor.clone())
-            .await
-            .with_opener(connection.clone(), &config, supervisor, provider)
-            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
+        .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
+        .with_maintenance(supervisor.clone())
+        .await
+        .with_opener(connection.clone(), &config, supervisor, provider)
+        .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
     );
 
     service.register_root();
