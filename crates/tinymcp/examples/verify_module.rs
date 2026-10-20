@@ -92,6 +92,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let proxy = client.proxy(names::INTERFACE, names::OBJECT_PATH, names::INTERFACE)?;
 
+    verify_fresh_module_state(&proxy).await?;
+
+    verify_static_bridge(&proxy).await?;
+    verify_server_protocol(&proxy).await?;
+    verify_metadata_operations(&proxy).await?;
+
+    println!(
+        "verified {} as TinyBus module `{}`, serving {} members on {}",
+        module.display(),
+        info.name,
+        names::METHODS.len(),
+        names::INTERFACE
+    );
+
+    broker_task.abort();
+    Ok(())
+}
+
+/// Checks that a newly loaded module has no configured or persisted MCP state.
+async fn verify_fresh_module_state(
+    proxy: &tinybus::Proxy,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Needs nothing configured: this is dispatch working at all.
     let declared: Vec<String> = proxy.call(names::methods::STATIC_LIST, ()).await?;
     if !declared.is_empty() {
@@ -131,19 +153,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(io::Error::other("fresh registry reported supervisor observations").into());
     }
 
-    verify_static_bridge(&proxy).await?;
-    verify_server_protocol(&proxy).await?;
-    verify_metadata_operations(&proxy).await?;
-
-    println!(
-        "verified {} as TinyBus module `{}`, serving {} members on {}",
-        module.display(),
-        info.name,
-        names::METHODS.len(),
-        names::INTERFACE
-    );
-
-    broker_task.abort();
     Ok(())
 }
 
