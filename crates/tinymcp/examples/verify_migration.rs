@@ -443,11 +443,7 @@ async fn verify_opened_directory(
             (child_dir.path().to_string_lossy().to_string(),),
         )
         .await?;
-    let child = controller.proxy(
-        module_peer.as_str(),
-        child_path.as_str(),
-        names::INTERFACE,
-    )?;
+    let child = controller.proxy(module_peer.as_str(), child_path.as_str(), names::INTERFACE)?;
     let child_installed: Vec<InstalledServer> =
         child.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(child_installed.len(), 1);
