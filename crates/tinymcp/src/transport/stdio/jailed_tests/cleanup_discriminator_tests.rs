@@ -67,5 +67,4 @@ fn a_delayed_stdin_close_does_not_hide_jail_cleanup() {
         "the gated stdin call was not recorded late: {members:?}"
     );
     assert_eq!(members.last(), Some(&names::CLOSE_STDIN));
-    assert_ne!(members.last(), Some(&names::CLOSE));
 }
