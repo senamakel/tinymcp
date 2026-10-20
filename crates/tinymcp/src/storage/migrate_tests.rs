@@ -252,7 +252,10 @@ fn legacy_rows_without_rekey_data_are_dropped() {
     // The server step can carry a non-object record only by dropping it.
     let non_object = rewrite_documents(SERVERS, vec![input("srv-1", json!("invalid"))], server)
         .unwrap();
-    assert!(non_object.is_empty());
+    assert_eq!(
+        non_object,
+        Vec::<tinystoragedrivers_core::schema::TargetRecord>::new()
+    );
 
     let cases: [(&str, Rewrite, Value); 6] = [
         ("claim", claim, json!({"server_id": "srv-1"})),

@@ -3287,13 +3287,15 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
                 .map_err(|_| tinybus::Error::failed("module storage ports could not prepare"))?;
             prepared_tx
                 .send(())
-                .map_err(|_| tinybus::Error::failed("storage test observer was dropped"))?;
+                .map_err(|()| tinybus::Error::failed("storage test observer was dropped"))?;
             lease_tx
                 .send(lease)
                 .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
 
-            let mut config = ModuleConfig::default();
-            config.storage_descriptor = Some(descriptor);
+            let config = ModuleConfig {
+                storage_descriptor: Some(descriptor),
+                ..Default::default()
+            };
             super::setup(connection, config).await
         },
     )
