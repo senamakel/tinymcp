@@ -1088,12 +1088,7 @@ async fn configured_tool_call_does_not_register_the_one_shot_server() {
 
 #[tokio::test]
 async fn configured_tool_call_runs_confidentially_without_registering_server() {
-    use tinybus::{
-        Connection,
-        broker::Broker,
-        module::ModuleHost,
-        transport::memory::{MemoryBus, MemoryTransport},
-    };
+    use tinybus::{Connection, transport::memory::MemoryBus};
     use tinymcp_bus::{ClassifiedStaticToolCall, ConfiguredToolCallRequest};
 
     let hits = Arc::new(AtomicUsize::new(0));
@@ -1134,25 +1129,8 @@ async fn configured_tool_call_runs_confidentially_without_registering_server() {
     let server_task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     let bus = MemoryBus::new();
-    let broker = Broker::new_restricted_module_control();
-    let (broker_transport, controller_transport) = MemoryTransport::pair();
-    broker
-        .attach_module_controller(Arc::new(broker_transport))
-        .unwrap();
-    let _controller = Connection::connect(Box::new(controller_transport))
-        .await
-        .unwrap();
-    let broker_task = broker.spawn(bus.clone());
-    let host = ModuleHost::new(broker);
-    let info = host
-        .attach_linked_with_config(
-            test_linked_module().unwrap(),
-            serde_json::to_value(ModuleConfig::default()).unwrap(),
-        )
-        .unwrap();
-    host.ensure_ready(info.manifest.bus_name.as_str())
-        .await
-        .unwrap();
+    let (host, _controller, broker_task) =
+        attach_linked_module_with_selected_controller(&bus).await;
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
@@ -1199,6 +1177,37 @@ async fn configured_tool_call_runs_confidentially_without_registering_server() {
     broker_task.abort();
     server_task.abort();
     drop(host);
+}
+
+async fn attach_linked_module_with_selected_controller(
+    bus: &tinybus::transport::memory::MemoryBus,
+) -> (
+    tinybus::module::ModuleHost,
+    tinybus::Connection,
+    tokio::task::JoinHandle<tinybus::Result<()>>,
+) {
+    use tinybus::{broker::Broker, module::ModuleHost, transport::memory::MemoryTransport};
+
+    let broker = Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .unwrap();
+    let controller = tinybus::Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
+    let broker_task = broker.spawn(bus.clone());
+    let host = ModuleHost::new(broker);
+    let info = host
+        .attach_linked_with_config(
+            test_linked_module().unwrap(),
+            serde_json::to_value(ModuleConfig::default()).unwrap(),
+        )
+        .unwrap();
+    host.ensure_ready(info.manifest.bus_name.as_str())
+        .await
+        .unwrap();
+    (host, controller, broker_task)
 }
 
 #[tokio::test]
