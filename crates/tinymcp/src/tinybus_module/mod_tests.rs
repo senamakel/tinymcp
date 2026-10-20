@@ -3228,9 +3228,54 @@ impl tinystoragedrivers_busproxy::AuditSink for BoundStorageAudit {
     fn record(&self, _event: tinystoragedrivers_busproxy::AuditEvent) {}
 }
 
+type BoundStorageRegistration = tinystoragedrivers_busproxy::StorageRegistration<
+    BoundStorageEnvironment,
+    BoundStorageAudit,
+    BoundStorageContext,
+>;
+
+async fn run_module_with_bound_storage(
+    connection: tinybus::Connection,
+    registration: Arc<BoundStorageRegistration>,
+    lease_tx: tokio::sync::oneshot::Sender<tinystoragedrivers_busproxy::StorageLease>,
+    prepared_tx: tokio::sync::oneshot::Sender<()>,
+) -> tinybus::Result<()> {
+    let peer = connection
+        .unique_name()
+        .ok_or_else(|| tinybus::Error::failed("module has no assigned peer"))?;
+    let (lease, descriptor) = registration
+        .register_lease(
+            tinystoragedrivers_busproxy::HostStorageContext::new(BoundStorageContext),
+            peer,
+        )
+        .await
+        .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
+    let provider =
+        crate::storage::BusProvider::connect_bound(connection.clone(), descriptor.clone())
+            .await
+            .map_err(|_| tinybus::Error::failed("module could not connect its storage lease"))?;
+    let ports =
+        crate::storage::StorageProvider::ports_for(&provider, std::path::Path::new("module-data"))
+            .map_err(|_| tinybus::Error::failed("module storage ports were unavailable"))?;
+    ports
+        .prepare()
+        .map_err(|_| tinybus::Error::failed("module storage ports could not prepare"))?;
+    prepared_tx
+        .send(())
+        .map_err(|()| tinybus::Error::failed("storage test observer was dropped"))?;
+    lease_tx
+        .send(lease)
+        .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
+
+    let config = ModuleConfig {
+        storage_descriptor: Some(descriptor),
+        ..Default::default()
+    };
+    super::setup(connection, config).await
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_selected_linked_module_uses_its_bound_storage_lease() {
-    use std::path::Path;
     use std::time::Duration;
     use tinybus::{
         broker::Broker,
@@ -3278,42 +3323,13 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
         .attach_linked_with_setup(
             test_linked_module().unwrap(),
             serde_json::to_value(ModuleConfig::default()).unwrap(),
-            move |connection| async move {
-                let peer = connection
-                    .unique_name()
-                    .ok_or_else(|| tinybus::Error::failed("module has no assigned peer"))?;
-                let (lease, descriptor) = registration_for_setup
-                    .register_lease(HostStorageContext::new(BoundStorageContext), peer)
-                    .await
-                    .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
-                let provider = crate::storage::BusProvider::connect_bound(
-                    connection.clone(),
-                    descriptor.clone(),
+            move |connection| {
+                run_module_with_bound_storage(
+                    connection,
+                    registration_for_setup,
+                    lease_tx,
+                    prepared_tx,
                 )
-                .await
-                .map_err(|_| {
-                    tinybus::Error::failed("module could not connect its storage lease")
-                })?;
-                let ports =
-                    crate::storage::StorageProvider::ports_for(&provider, Path::new("module-data"))
-                        .map_err(|_| {
-                            tinybus::Error::failed("module storage ports were unavailable")
-                        })?;
-                ports.prepare().map_err(|_| {
-                    tinybus::Error::failed("module storage ports could not prepare")
-                })?;
-                prepared_tx
-                    .send(())
-                    .map_err(|()| tinybus::Error::failed("storage test observer was dropped"))?;
-                lease_tx
-                    .send(lease)
-                    .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
-
-                let config = ModuleConfig {
-                    storage_descriptor: Some(descriptor),
-                    ..Default::default()
-                };
-                super::setup(connection, config).await
             },
         )
         .await
