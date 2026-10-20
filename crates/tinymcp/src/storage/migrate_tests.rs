@@ -246,7 +246,7 @@ fn legacy_rows_without_rekey_data_are_dropped() {
     let input = |id: &str, body: Value| SourceRecord {
         id: id.to_owned(),
         body,
-        meta: tinystoragedrivers_core::schema::Meta::unknown(),
+        meta: tinystoragedrivers_core::Meta::unknown(),
     };
 
     // The server step can carry a non-object record only by dropping it.
