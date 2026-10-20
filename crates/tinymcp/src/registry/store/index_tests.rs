@@ -62,6 +62,22 @@ fn a_sync_records_each_page_and_its_cursor() {
 }
 
 #[test]
+fn a_transactional_index_write_preserves_the_current_schema_version() {
+    let store = store();
+    assert!(store.ports.documents.capabilities().contains(Capability::Transactions));
+
+    store
+        .store_index_page(SOURCE, &[row("a/one", "a/one one", "first")], None)
+        .unwrap();
+
+    let id = index_id(SOURCE, "a/one").unwrap();
+    let stored = futures_executor_block(store.ports.documents.get(REGISTRY_INDEX, &id))
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.meta.schema, crate::storage::SCHEMA_VERSION);
+}
+
+#[test]
 fn finishing_a_sync_records_when_and_clears_the_resume_point() {
     let store = store();
     store.begin_index_sync(SOURCE, BASE).unwrap();
