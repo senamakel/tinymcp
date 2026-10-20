@@ -42,7 +42,7 @@ impl BusProvider {
     }
 
     /// Connects to the host-issued current-only storage lease on this module's
-    /// existing TinyBus connection.
+    /// existing `TinyBus` connection.
     ///
     /// The descriptor selects a unique service peer and route. The TSD host
     /// still authenticates this module peer and checks that the lease is live
