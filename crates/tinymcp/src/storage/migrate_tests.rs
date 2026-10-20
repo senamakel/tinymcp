@@ -242,6 +242,70 @@ fn a_cached_response_that_is_not_json_is_dropped_rather_than_blocking_the_step()
 }
 
 #[test]
+fn legacy_rows_without_rekey_data_are_dropped() {
+    let input = |id: &str, body: Value| SourceRecord {
+        id: id.to_owned(),
+        body,
+        meta: tinystoragedrivers_core::schema::Meta::unknown(),
+    };
+
+    // The server step can carry a non-object record only by dropping it.
+    let non_object = rewrite_documents(SERVERS, vec![input("srv-1", json!("invalid"))], server)
+        .unwrap();
+    assert!(non_object.is_empty());
+
+    let cases: [(&str, Rewrite, Value); 6] = [
+        ("claim", claim, json!({"server_id": "srv-1"})),
+        (
+            "response-without-key",
+            cached_response,
+            json!({"body_json": "{}"}),
+        ),
+        (
+            "response-with-invalid-json",
+            cached_response,
+            json!({"cache_key": "k", "body_json": "not-json"}),
+        ),
+        ("tools-without-key", cached_tools, json!({"tools": []})),
+        (
+            "index-without-source",
+            index_row,
+            json!({"qualified_name": "@acme/files", "record_json": "{}"}),
+        ),
+        (
+            "index-state-without-source",
+            index_state,
+            json!({"started_at": 10}),
+        ),
+    ];
+
+    for (id, rewrite, body) in cases {
+        let Value::Object(body) = body else {
+            unreachable!("fixtures are JSON objects");
+        };
+        let record = input(id, Value::Object(body.clone()));
+        assert_eq!(rewrite(&record, body).unwrap(), None, "{id}");
+    }
+
+    let invalid_index_record = input(
+        "index-1",
+        json!({
+            "source": "official",
+            "qualified_name": "@acme/files",
+            "record_json": "not-json"
+        }),
+    );
+    let Value::Object(body) = invalid_index_record.body else {
+        unreachable!("fixture is a JSON object");
+    };
+    assert_eq!(
+        index_row(&invalid_index_record, body).unwrap(),
+        None,
+        "an index row without a valid cached record is not migratable"
+    );
+}
+
+#[test]
 fn cached_tools_are_keyed_by_the_server_key() {
     let fixture = Fixture::new();
     fixture.legacy(
