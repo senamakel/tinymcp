@@ -1,9 +1,110 @@
+//! Provider isolation for services created by the directory opener.
+
 use super::*;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::registry::Store;
+use crate::storage::{StoragePorts, StorageProvider};
 use tinybus::transport::memory::MemoryBus;
-use tinymcp_bus::names;
+use tinymcp_bus::{CommandKind, InstalledServer, Transport, names};
+
+#[derive(Debug, Clone)]
+struct FixedStorageProvider(StoragePorts);
+
+impl StorageProvider for FixedStorageProvider {
+    fn ports_for(&self, _data_dir: &std::path::Path) -> crate::error::Result<StoragePorts> {
+        Ok(self.0.clone())
+    }
+}
+
+fn fixed_provider_with_server(server_id: &str) -> Arc<dyn StorageProvider> {
+    let ports = StoragePorts::memory().unwrap();
+    Store::open(ports.clone())
+        .unwrap()
+        .insert_server(&InstalledServer {
+            server_id: server_id.to_owned(),
+            qualified_name: format!("@test/{server_id}"),
+            display_name: server_id.to_owned(),
+            description: None,
+            icon_url: None,
+            command_kind: CommandKind::Node,
+            command: "fixture-disabled-server".to_owned(),
+            args: Vec::new(),
+            env_keys: Vec::new(),
+            config: None,
+            installed_at: 1,
+            last_connected_at: None,
+            transport: Transport::Stdio,
+            enabled: false,
+        })
+        .unwrap();
+    Arc::new(FixedStorageProvider(ports))
+}
+
+fn installed_ids(service: &McpService) -> Vec<String> {
+    service
+        .dynamic()
+        .installed_list()
+        .unwrap()
+        .into_iter()
+        .map(|server| server.server_id)
+        .collect()
+}
+
+#[tokio::test]
+async fn opened_directory_services_reuse_their_module_bound_provider() {
+    let (connection, _service) = connected_service().await;
+    let root_a = tempfile::tempdir().unwrap();
+    let child_a = tempfile::tempdir().unwrap();
+    let root_b = tempfile::tempdir().unwrap();
+    let child_b = tempfile::tempdir().unwrap();
+    let provider_a = fixed_provider_with_server("module-a");
+    let provider_b = fixed_provider_with_server("module-b");
+    let config_a = ModuleConfig {
+        data_dir: Some(root_a.path().to_path_buf()),
+        client: McpClientConfig::default(),
+        storage_descriptor: None,
+    };
+    let config_b = ModuleConfig {
+        data_dir: Some(root_b.path().to_path_buf()),
+        client: McpClientConfig::default(),
+        storage_descriptor: None,
+    };
+    let root_service_a = McpService::with_provider(&config_a, Arc::clone(&provider_a)).unwrap();
+    let root_service_b = McpService::with_provider(&config_b, Arc::clone(&provider_b)).unwrap();
+    let opener_a = DirectoryOpener::new(
+        connection.clone(),
+        &config_a,
+        SupervisorConfig::default(),
+        Arc::clone(&provider_a),
+    )
+    .unwrap();
+    let opener_b = DirectoryOpener::new(
+        connection,
+        &config_b,
+        SupervisorConfig::default(),
+        Arc::clone(&provider_b),
+    )
+    .unwrap();
+    let child_service_a = opener_a
+        .new_service(
+            Some(child_a.path().to_path_buf()),
+            McpClientConfig::default(),
+        )
+        .unwrap();
+    let child_service_b = opener_b
+        .new_service(
+            Some(child_b.path().to_path_buf()),
+            McpClientConfig::default(),
+        )
+        .unwrap();
+
+    assert_eq!(installed_ids(&root_service_a), vec!["module-a".to_owned()]);
+    assert_eq!(installed_ids(&child_service_a), vec!["module-a".to_owned()]);
+    assert_eq!(installed_ids(&root_service_b), vec!["module-b".to_owned()]);
+    assert_eq!(installed_ids(&child_service_b), vec!["module-b".to_owned()]);
+}
 
 async fn connected_service() -> (Connection, Arc<McpService>) {
     let bus = MemoryBus::new();
