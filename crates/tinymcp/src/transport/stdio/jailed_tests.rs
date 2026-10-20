@@ -197,16 +197,22 @@ impl JailBus for FakeBox {
 }
 
 fn gate_before_fakebox_record(gate: Option<&CloseStdinGate>, member: &'static str) {
-    if member == names::CLOSE_STDIN && let Some(gate) = gate {
+    if member == names::CLOSE_STDIN
+        && let Some(gate) = gate
+    {
         gate.enter_and_wait();
     }
 }
 
 fn gate_after_fakebox_record(gate: Option<&CloseStdinGate>, member: &'static str) {
-    if member == names::CLOSE && let Some(gate) = gate {
+    if member == names::CLOSE
+        && let Some(gate) = gate
+    {
         gate.close_recorded();
     }
-    if member == names::CLOSE_STDIN && let Some(gate) = gate {
+    if member == names::CLOSE_STDIN
+        && let Some(gate) = gate
+    {
         gate.stdin_close_recorded();
     }
 }
