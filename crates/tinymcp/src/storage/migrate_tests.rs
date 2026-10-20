@@ -551,15 +551,18 @@ fn the_module_handler_reuses_the_audit_stream_name_transform() {
 #[test]
 fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() {
     use tinystoragedrivers_core::schema::delivery::{
-        BlobTargetRequest, DocumentsTransformRequest, MigrationPayload, MigrationPayloadReply,
-        StreamEntriesRequest, StreamPlanRequest,
+        BlobTargetRequest, MigrationPayload, MigrationPayloadReply, StreamEntriesRequest,
+        StreamPlanRequest,
     };
     use tinystoragedrivers_core::schema::{
-        SourceRecord, TransformErrorKind, TransformResult,
+        DocumentsTransformRequest, SourceRecord, TransformErrorKind, TransformResult,
     };
     use tinystoragedrivers_core::Meta;
 
-    fn assert_error<T>(result: TransformResult<T>, expected: TransformErrorKind) {
+    fn assert_error<T: std::fmt::Debug>(
+        result: TransformResult<T>,
+        expected: TransformErrorKind,
+    ) {
         assert_eq!(result.unwrap_err().kind, expected);
     }
 
