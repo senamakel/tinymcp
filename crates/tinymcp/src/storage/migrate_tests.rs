@@ -303,6 +303,15 @@ fn legacy_rows_without_rekey_data_are_dropped() {
         None,
         "an index row without a valid cached record is not migratable"
     );
+
+    let without_creation_time = rewrite_documents(
+        SERVERS,
+        vec![input("srv-with-unknown-meta", v1_server())],
+        server,
+    )
+    .unwrap();
+    assert_eq!(without_creation_time.len(), 1);
+    assert_eq!(without_creation_time[0].created_ms, None);
 }
 
 #[test]
@@ -536,4 +545,109 @@ fn the_module_handler_reuses_the_audit_stream_name_transform() {
             tinystoragedrivers_core::schema::StreamMapMode::Identity
         );
     }
+}
+
+#[cfg(feature = "module")]
+#[test]
+fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() {
+    use tinystoragedrivers_core::schema::delivery::{
+        BlobTargetRequest, DocumentsTransformRequest, MigrationPayload, MigrationPayloadReply,
+        StreamEntriesRequest, StreamPlanRequest,
+    };
+    use tinystoragedrivers_core::schema::{
+        SourceRecord, TransformErrorKind, TransformResult,
+    };
+    use tinystoragedrivers_core::Meta;
+
+    fn assert_error<T>(result: TransformResult<T>, expected: TransformErrorKind) {
+        assert_eq!(result.unwrap_err().kind, expected);
+    }
+
+    let handler = super::TinyMcpMigrationHandler;
+    let document = |operation: &str, version| {
+        MigrationPayload::Documents(DocumentsTransformRequest {
+            operation: operation.to_owned(),
+            version,
+            records: vec![SourceRecord {
+                id: String::new(),
+                body: v1_server(),
+                meta: Meta::unknown(),
+            }],
+        })
+    };
+    let stream_plan = |operation: &str, version, source: &str| {
+        MigrationPayload::StreamPlan(StreamPlanRequest {
+            operation: operation.to_owned(),
+            version,
+            source: source.to_owned(),
+        })
+    };
+    let unsupported = TransformErrorKind::UnsupportedOperation;
+    let invalid = TransformErrorKind::InvalidInput;
+    let unsupported_version = TransformErrorKind::UnsupportedVersion;
+
+    let MigrationPayloadReply::Documents(result) = handler.transform(document("unknown", 1)) else {
+        panic!("document requests return document results");
+    };
+    assert_error(result, unsupported);
+    let MigrationPayloadReply::Documents(result) = handler.transform(document(
+        crate::storage::schema::SERVERS_V2_OPERATION,
+        99,
+    )) else {
+        panic!("document requests return document results");
+    };
+    assert_error(result, unsupported_version);
+    let MigrationPayloadReply::Documents(result) = handler.transform(document(
+        crate::storage::schema::SERVERS_V2_OPERATION,
+        crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+    )) else {
+        panic!("document requests return document results");
+    };
+    assert_error(result, invalid);
+
+    for (request, expected) in [
+        (stream_plan("unknown", 1, "mcp_audit"), unsupported),
+        (
+            stream_plan(
+                crate::storage::schema::AUDIT_V2_OPERATION,
+                99,
+                "mcp_audit",
+            ),
+            unsupported_version,
+        ),
+        (
+            stream_plan(
+                crate::storage::schema::AUDIT_V2_OPERATION,
+                crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+                "other_audit",
+            ),
+            invalid,
+        ),
+    ] {
+        let MigrationPayloadReply::StreamPlan(result) = handler.transform(request) else {
+            panic!("stream plans return stream-plan results");
+        };
+        assert_error(result, expected);
+    }
+
+    let MigrationPayloadReply::StreamEntries(result) = handler.transform(
+        MigrationPayload::StreamEntries(StreamEntriesRequest {
+            operation: crate::storage::schema::AUDIT_V2_OPERATION.to_owned(),
+            version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+            entries: vec![],
+        }),
+    ) else {
+        panic!("stream-entry requests return stream-entry results");
+    };
+    assert_error(result, unsupported);
+    let MigrationPayloadReply::BlobTarget(result) = handler.transform(
+        MigrationPayload::BlobTarget(BlobTargetRequest {
+            operation: "mcp.blob_v2".to_owned(),
+            version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+            source: "mcp/old".to_owned(),
+        }),
+    ) else {
+        panic!("blob requests return blob results");
+    };
+    assert_error(result, unsupported);
 }
