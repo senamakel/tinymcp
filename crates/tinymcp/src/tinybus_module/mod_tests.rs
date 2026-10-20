@@ -3283,7 +3283,7 @@ async fn a_selected_linked_module_uses_its_bound_storage_lease() {
         transport::memory::{MemoryBus, MemoryTransport},
     };
     use tinystoragedrivers_busproxy::{
-        GovernedEndpointLimits, GovernedStorage, HostStorageContext, TinyBusCallerDirectory,
+        GovernedEndpointLimits, GovernedStorage, TinyBusCallerDirectory,
     };
     use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
 
