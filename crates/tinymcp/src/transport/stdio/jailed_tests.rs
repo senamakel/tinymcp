@@ -30,6 +30,14 @@ struct State {
     confidential_reads: usize,
 }
 
+/// How much of the jail the fake backend can enforce.
+#[derive(Debug, Default, PartialEq, Eq)]
+enum Backend {
+    #[default]
+    Full,
+    BestEffort,
+}
+
 /// What the fake does differently from a plain, silent module.
 #[derive(Debug, Default)]
 struct Behavior {
@@ -37,6 +45,9 @@ struct Behavior {
     respond: bool,
     /// Make `Create` fail.
     create_error: bool,
+    /// Act as a best-effort backend: refuse `StartStdio` unless the jail
+    /// asks for `declared` enforcement.
+    backend: Backend,
     /// Report stdout closed while stderr stays open.
     stdout_only_closed: bool,
 }
@@ -124,6 +135,14 @@ impl JailBus for FakeBox {
                     "state": "running", "published_ports": []
                 })),
                 m if m == names::START_STDIO => {
+                    if state.behavior.backend == Backend::BestEffort
+                        && args["jail"]["enforcement"] != "declared"
+                    {
+                        return Err(JailBusError {
+                            name: Some(tinybox_bus::UNSUPPORTED_OPERATION.into()),
+                            message: "backend cannot enforce every grant".into(),
+                        });
+                    }
                     if let Some(name) = state.start_error {
                         return Err(JailBusError {
                             name: Some(name.into()),
@@ -177,6 +196,7 @@ fn sandbox() -> StdioSandboxConfig {
         allow_net: true,
         allow_subprocess: false,
         require_process_isolation: true,
+        enforcement: StdioSandboxEnforcement::default(),
     }
 }
 
@@ -231,6 +251,40 @@ async fn a_handshake_runs_through_the_jail_with_the_hosts_grants() {
     let members = fake.members();
     assert!(members.contains(&names::KILL_STDIO));
     assert_eq!(members.last(), Some(&names::CLOSE));
+}
+
+#[test]
+fn the_sandbox_enforcement_defaults_to_enforced() {
+    assert_eq!(
+        StdioSandboxEnforcement::default(),
+        StdioSandboxEnforcement::Enforced
+    );
+    assert_eq!(sandbox().enforcement, StdioSandboxEnforcement::Enforced);
+}
+
+#[tokio::test]
+async fn declared_enforcement_lets_a_best_effort_backend_start() {
+    let fake = FakeBox::serving();
+    fake.state.lock().unwrap().behavior.backend = Backend::BestEffort;
+    let config = StdioSandboxConfig {
+        enforcement: StdioSandboxEnforcement::Declared,
+        ..sandbox()
+    };
+    let spawner = JailedSpawner::new(fake.clone(), config);
+    let mut process = spawner.spawn_process(launch()).await.unwrap();
+    let start = &fake.args(names::START_STDIO)[0];
+    assert_eq!(start["jail"]["enforcement"], "declared");
+    process.handle.terminate().await;
+}
+
+#[tokio::test]
+async fn enforced_enforcement_still_refuses_a_best_effort_backend() {
+    let fake = FakeBox::serving();
+    fake.state.lock().unwrap().behavior.backend = Backend::BestEffort;
+    let spawner = JailedSpawner::new(fake.clone(), sandbox());
+    let error = spawner.spawn_process(launch()).await.unwrap_err();
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(fake.members().last(), Some(&names::CLOSE));
 }
 
 #[tokio::test]
