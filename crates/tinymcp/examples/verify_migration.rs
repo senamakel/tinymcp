@@ -31,9 +31,11 @@ struct SelectedModule {
     _staging: tempfile::TempDir,
     controller: Connection,
     outsider: Connection,
-    _module_host: ModuleHost,
+    storage_host: Connection,
+    module_host: ModuleHost,
+    module_name: String,
     module_peer: BusName,
-    migration: MigrationModuleClient,
+    migration: Option<MigrationModuleClient>,
 }
 
 #[tokio::main]
@@ -42,10 +44,14 @@ async fn main() -> VerifyResult<()> {
     let (_unselected_staging, unselected_module) = stage_allowlisted_module(&source)?;
     verify_unselected_setup_fails(&unselected_module).await?;
 
-    let fixture = load_selected_module(&source).await?;
+    let mut fixture = load_selected_module(&source).await?;
     verify_migration_authorization(&fixture).await?;
-    let storage = migrate_legacy_records(fixture.migration).await?;
-    verify_normal_storage_after_migration(&source, storage).await?;
+    let migration = fixture
+        .migration
+        .take()
+        .ok_or_else(|| std::io::Error::other("migration client was already consumed"))?;
+    let storage = migrate_legacy_records(migration).await?;
+    verify_normal_storage_after_migration(&fixture, storage).await?;
 
     println!("verified TinyMCP owner transforms through a compiled module");
     Ok(())
@@ -109,6 +115,7 @@ async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
     let broker = Broker::new_restricted_module_control();
     let controller = connect_peer(&broker, true).await?;
     let outsider = connect_peer(&broker, false).await?;
+    let storage_host = connect_peer(&broker, false).await?;
     let module_host = ModuleHost::new(broker);
     let info = module_host.load_file(&staged)?;
     if let Err(error) = module_host
@@ -137,9 +144,11 @@ async fn load_selected_module(source: &Path) -> VerifyResult<SelectedModule> {
         _staging: staging,
         controller,
         outsider,
-        _module_host: module_host,
+        storage_host,
+        module_name: info.name,
+        module_host,
         module_peer,
-        migration,
+        migration: Some(migration),
     })
 }
 
@@ -177,13 +186,13 @@ fn legacy_server() -> Value {
         "qualified_name": "@acme/files",
         "display_name": "Files",
         "command_kind": "node",
-        "command": "npx",
-        "args": ["-y", "files"],
+        "command": "fixture-disabled-server",
+        "args": [],
         "env_keys": ["TOKEN"],
         "installed_at": 1_700_000_000_000_i64,
         "last_connected_at": 1_700_000_100_000_i64,
         "transport": "stdio",
-        "enabled": true,
+        "enabled": false,
         "catalog_managed": true,
     })
 }
@@ -247,6 +256,7 @@ async fn assert_migrated_server(
         .ok_or_else(|| std::io::Error::other("server row did not migrate"))?;
     assert_eq!(migrated.doc["installed_ms"], 1_700_000_000_000_i64);
     assert_eq!(migrated.doc["last_connected_ms"], 1_700_000_100_000_i64);
+    assert_eq!(migrated.doc["enabled"], false);
     assert_eq!(migrated.meta.created_ms, source_meta.created_ms);
     assert_eq!(migrated.meta.expires_ms, Some(expiry));
     assert!(
@@ -279,47 +289,42 @@ async fn assert_migrated_audit_stream(
 }
 
 async fn verify_normal_storage_after_migration(
-    source: &Path,
+    fixture: &SelectedModule,
     storage: ScopedStorage,
 ) -> VerifyResult<()> {
-    let broker = Broker::new_restricted_module_control();
-    let host_connection = connect_peer(&broker, false).await?;
     let storage_for_peer = storage.clone();
     let secrets = Arc::new(MemorySecrets::new());
     let endpoint = PerCallerEndpoint::new(move |_sender| {
         Some(StorageServer::new(storage_for_peer.clone()).with_secrets(secrets.clone()))
     });
-    let _served = serve(&host_connection, Arc::new(endpoint)).await?;
-    let controller = connect_peer(&broker, true).await?;
-    let (_staging, staged) = stage_allowlisted_module(source)?;
-    let modules = ModuleHost::new(broker);
-    let data_dir = tempfile::tempdir()?;
-    let info = modules.load_file_with_config(
-        &staged,
-        json!({"data_dir":data_dir.path().to_string_lossy()}),
-    )?;
-    if let Err(error) = modules
-        .ensure_ready(info.manifest.bus_name.as_str())
-        .await
-    {
-        let state = modules
-            .list()
-            .into_iter()
-            .find(|module| module.manifest.bus_name == info.manifest.bus_name)
-            .map(|module| module.state);
-        return Err(std::io::Error::other(format!(
-            "storage-bound TinyMCP setup failed: {error}; state: {state:?}"
-        ))
-        .into());
-    }
-    let module_peer = controller
+    let _served = serve(&fixture.storage_host, Arc::new(endpoint)).await?;
+    let before_owner = fixture
+        .controller
         .name_owner(names::INTERFACE)
-        .await?
-        .ok_or_else(|| std::io::Error::other("storage-bound TinyMCP did not claim its bus name"))?;
-    let proxy = controller.proxy(module_peer.as_str(), names::OBJECT_PATH, names::INTERFACE)?;
+        .await?;
+    assert_eq!(before_owner.as_ref(), Some(&fixture.module_peer));
+    let data_dir = tempfile::tempdir()?;
+    fixture
+        .module_host
+        .reinitialize(
+            &fixture.module_name,
+        json!({"data_dir":data_dir.path().to_string_lossy()}),
+        )
+        .await?;
+    let after_owner = fixture
+        .controller
+        .name_owner(names::INTERFACE)
+        .await?;
+    assert_eq!(after_owner.as_ref(), Some(&fixture.module_peer));
+    let proxy = fixture.controller.proxy(
+        fixture.module_peer.as_str(),
+        names::OBJECT_PATH,
+        names::INTERFACE,
+    )?;
     let installed: Vec<InstalledServer> = proxy.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(installed.len(), 1);
     assert_eq!(installed[0].server_id, "srv-1");
+    assert!(!installed[0].enabled, "the disabled fixture remains disabled");
     let _: tinymcp_bus::RegistrySettings = proxy
         .call(names::methods::REGISTRY_SETTINGS_GET, ())
         .await?;
