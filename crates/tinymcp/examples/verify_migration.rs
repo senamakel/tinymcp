@@ -30,6 +30,11 @@ use tinystoragedrivers_tinybus::migration::{
 };
 
 type VerifyResult<T> = Result<T, Box<dyn Error>>;
+type FixtureRegistration = tinystoragedrivers_tinybus::StorageRegistration<
+    MemoryStorageEnvironment,
+    NoAudit,
+    StorageProfile,
+>;
 
 struct SelectedModule {
     _staging: tempfile::TempDir,
@@ -368,7 +373,7 @@ async fn verify_normal_storage_after_migration(
         Arc::new(NoAudit),
         GovernedEndpointLimits::default(),
     );
-    let registration = tinystoragedrivers_tinybus::attach_storage(
+    let registration: FixtureRegistration = tinystoragedrivers_tinybus::attach_storage(
         &fixture.module_host,
         &fixture.storage_host,
         endpoint,
@@ -398,14 +403,24 @@ async fn verify_normal_storage_after_migration(
         .await?;
     let after_owner = fixture.controller.name_owner(names::INTERFACE).await?;
     assert_eq!(after_owner.as_ref(), Some(&fixture.module_peer));
-    let migration =
-        MigrationModuleClient::discover(&fixture.controller, &fixture.module_peer).await?;
-    assert_eq!(migration.declaration().owner.as_str(), "mcp");
     let proxy = fixture.controller.proxy(
         fixture.module_peer.as_str(),
         names::OBJECT_PATH,
         names::INTERFACE,
     )?;
+    verify_host_backed_root(fixture, &proxy).await?;
+    verify_opened_directory(&fixture.controller, &proxy).await?;
+    verify_bad_descriptors_leave_current_service_live(fixture, &proxy, &registration).await?;
+    verify_stateless_root_keeps_bound_directory_provider(fixture, descriptor).await
+}
+
+async fn verify_host_backed_root(
+    fixture: &SelectedModule,
+    proxy: &tinybus::Proxy,
+) -> VerifyResult<()> {
+    let migration =
+        MigrationModuleClient::discover(&fixture.controller, &fixture.module_peer).await?;
+    assert_eq!(migration.declaration().owner.as_str(), "mcp");
     let installed: Vec<InstalledServer> = proxy.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(installed.len(), 1);
     assert_eq!(installed[0].server_id, "srv-1");
@@ -416,7 +431,13 @@ async fn verify_normal_storage_after_migration(
     let _: tinymcp_bus::RegistrySettings = proxy
         .call(names::methods::REGISTRY_SETTINGS_GET, ())
         .await?;
+    Ok(())
+}
 
+async fn verify_opened_directory(
+    controller: &Connection,
+    proxy: &tinybus::Proxy,
+) -> VerifyResult<()> {
     let child_dir = tempfile::tempdir()?;
     let child_path: String = proxy
         .call_confidential(
@@ -424,16 +445,19 @@ async fn verify_normal_storage_after_migration(
             (child_dir.path().to_string_lossy().to_string(),),
         )
         .await?;
-    let child = fixture.controller.proxy(
-        fixture.module_peer.as_str(),
-        child_path.as_str(),
-        names::INTERFACE,
-    )?;
+    let child = controller.proxy(child_path.as_str(), names::OBJECT_PATH, names::INTERFACE)?;
     let child_installed: Vec<InstalledServer> =
         child.call(names::methods::INSTALLED_LIST, ()).await?;
     assert_eq!(child_installed.len(), 1);
     assert_eq!(child_installed[0].server_id, "srv-1");
+    Ok(())
+}
 
+async fn verify_bad_descriptors_leave_current_service_live(
+    fixture: &SelectedModule,
+    proxy: &tinybus::Proxy,
+    registration: &FixtureRegistration,
+) -> VerifyResult<()> {
     let malformed_descriptor = json!({
         "service_peer": "not-a-unique-peer",
         "registration_id": 77,
@@ -490,11 +514,18 @@ async fn verify_normal_storage_after_migration(
     assert_eq!(after_revoked.len(), 1);
     assert_eq!(after_revoked[0].server_id, "srv-1");
 
+    Ok(())
+}
+
+async fn verify_stateless_root_keeps_bound_directory_provider(
+    fixture: &SelectedModule,
+    descriptor: tinystoragedrivers_busproxy::StorageDescriptor,
+) -> VerifyResult<()> {
     fixture
         .module_host
         .reinitialize(
             &fixture.module_name,
-            json!({"storage_descriptor": descriptor.clone()}),
+            json!({"storage_descriptor": descriptor}),
         )
         .await?;
     let no_root_migration =
