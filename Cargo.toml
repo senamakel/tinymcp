@@ -41,15 +41,15 @@ tinystoragedrivers-bus = { version = "1.9", git = "https://github.com/tinyhumans
 # TinyBox through the bus and never links its implementation.
 tinybox-bus = { git = "https://github.com/tinyhumansai/tinybox", tag = "v0.1.36" }
 # TinyBus defines the message types, interface macro, and frozen module ABI
-# used by the generated integration. Socket and CLI features are unnecessary
-# here.
-tinybus = { version = "0.3.8", git = "https://github.com/tinyhumansai/tinybus", rev = "5e3c882c46b84fe319b38332123dd8acc3cd826e", default-features = false, features = [
+# used by the generated integration. The immutable SDK source is shared with
+# TSD's module-side bus adapter through the path patches below.
+tinybus = { version = "0.3.9", git = "https://github.com/tinyhumansai/tinybus", rev = "3792a1d85f3dd171682dc45d310ee0f03836f038", default-features = false, features = [
     "macros",
     "modules",
 ] }
 # The module-side SDK owns the isolated runtime and exports the ABI entrypoints
 # required by TinyBus's dynamic loader.
-tinybus-module = { version = "0.3.8", git = "https://github.com/tinyhumansai/tinybus", rev = "5e3c882c46b84fe319b38332123dd8acc3cd826e" }
+tinybus-module = { version = "0.3.9", git = "https://github.com/tinyhumansai/tinybus", rev = "3792a1d85f3dd171682dc45d310ee0f03836f038" }
 # Derive macros for the crate-wide error type in `crates/tinymcp/src/error/`.
 # Every dependency entry should carry a comment like this one saying why it is
 # here.
@@ -208,3 +208,4 @@ tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
 [patch."https://github.com/tinyhumansai/tinybus"]
 tinybus = { path = "vendor/tinybus/crates/tinybus" }
 tinybus-module = { path = "vendor/tinybus/crates/tinybus-module" }
+tinybus-macros = { path = "vendor/tinybus/crates/tinybus-macros" }
