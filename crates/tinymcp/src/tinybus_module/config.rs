@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use tinymcp_bus::McpClientConfig;
+use tinystoragedrivers_busproxy::StorageDescriptor;
 
 /// The module's configuration blob.
 ///
@@ -26,6 +27,15 @@ pub struct ModuleConfig {
     pub data_dir: Option<PathBuf>,
     /// The servers, credentials, identity, and proxy.
     pub client: McpClientConfig,
+    /// The host-issued current-only storage route for this module instance.
+    ///
+    /// This is routing data, not authority: the TSD host validates the module's
+    /// authenticated peer against the live lease on every call. A missing
+    /// `data_dir` keeps the root service in memory while directory services
+    /// opened later still use this provider. `None` keeps the legacy host-
+    /// storage lookup behavior for older loaders.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage_descriptor: Option<StorageDescriptor>,
 }
 
 /// The fields as they appear on the wire.
@@ -37,6 +47,7 @@ pub struct ModuleConfig {
 struct Wire {
     data_dir: Option<PathBuf>,
     client: McpClientConfig,
+    storage_descriptor: Option<StorageDescriptor>,
 }
 
 impl<'de> Deserialize<'de> for ModuleConfig {
@@ -51,6 +62,11 @@ impl<'de> Deserialize<'de> for ModuleConfig {
         Ok(Self {
             data_dir: wire.data_dir,
             client: wire.client,
+            storage_descriptor: wire.storage_descriptor,
         })
     }
 }
+
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;

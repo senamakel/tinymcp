@@ -4,6 +4,8 @@
 //! ownership, scope, versions, and migration callbacks belong to this module.
 
 use tinystoragedrivers_core::schema::{Owner, Schema, ScopeClass};
+#[cfg(any(feature = "module", test))]
+use tinystoragedrivers_core::schema::{SchemaDeclaration, Step};
 use tinystoragedrivers_core::{
     CollectionSpec as CoreCollectionSpec, IndexSpec as CoreIndexSpec, Key,
     SearchSpec as CoreSearchSpec, WriteOptions,
@@ -15,6 +17,23 @@ use super::migrate;
 pub const OWNER: &str = "mcp";
 /// The body version every collection is declared at.
 pub(crate) const SCHEMA_VERSION: u32 = 2;
+/// Version of the owner-side transform operations carried over `TinyBus`.
+#[cfg(any(feature = "module", test))]
+pub(crate) const MIGRATION_TRANSFORM_VERSION: u32 = 1;
+#[cfg(any(feature = "module", test))]
+pub(crate) const SERVERS_V2_OPERATION: &str = "mcp.servers_v2";
+#[cfg(any(feature = "module", test))]
+pub(crate) const SERVER_NAMES_V2_OPERATION: &str = "mcp.server_names_v2";
+#[cfg(any(feature = "module", test))]
+pub(crate) const REGISTRY_CACHE_V2_OPERATION: &str = "mcp.registry_cache_v2";
+#[cfg(any(feature = "module", test))]
+pub(crate) const TOOL_CACHE_V2_OPERATION: &str = "mcp.tool_cache_v2";
+#[cfg(any(feature = "module", test))]
+pub(crate) const REGISTRY_INDEX_V2_OPERATION: &str = "mcp.registry_index_v2";
+#[cfg(any(feature = "module", test))]
+pub(crate) const REGISTRY_INDEX_STATE_V2_OPERATION: &str = "mcp.registry_index_state_v2";
+#[cfg(any(feature = "module", test))]
+pub(crate) const AUDIT_V2_OPERATION: &str = "mcp.audit_v2";
 pub use tinymcp_bus::storage::AUDIT_STREAM;
 pub(crate) use tinymcp_bus::storage::{
     REGISTRY_CACHE, REGISTRY_INDEX, REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS, TOOL_CACHE,
@@ -62,6 +81,34 @@ pub fn storage_schema() -> Schema {
         })
         .stream(AUDIT_STREAM, ScopeClass::Module);
     migrate::steps().into_iter().fold(schema, Schema::step)
+}
+
+/// The serializable owner declaration derived from the executable MCP schema.
+///
+/// The operation mapping is explicit so adding a local migration step without
+/// a `TinyBus` transform fails closed instead of publishing incomplete metadata.
+#[cfg(any(feature = "module", test))]
+pub(crate) fn storage_schema_declaration() -> tinystoragedrivers_core::Result<SchemaDeclaration> {
+    tinystoragedrivers_core::schema::declaration_from_schema(&storage_schema(), |step| {
+        Some((
+            migration_operation(step)?.to_owned(),
+            MIGRATION_TRANSFORM_VERSION,
+        ))
+    })
+}
+
+#[cfg(any(feature = "module", test))]
+fn migration_operation(step: &Step) -> Option<&'static str> {
+    match step.id {
+        "servers_v2" => Some(SERVERS_V2_OPERATION),
+        "server_names_v2" => Some(SERVER_NAMES_V2_OPERATION),
+        "registry_cache_v2" => Some(REGISTRY_CACHE_V2_OPERATION),
+        "tool_cache_v2" => Some(TOOL_CACHE_V2_OPERATION),
+        "registry_index_v2" => Some(REGISTRY_INDEX_V2_OPERATION),
+        "registry_index_state_v2" => Some(REGISTRY_INDEX_STATE_V2_OPERATION),
+        "audit_v2" => Some(AUDIT_V2_OPERATION),
+        _ => None,
+    }
 }
 
 /// The options every document write carries: the body version.

@@ -12,6 +12,7 @@ use tinymcp_bus::{
 
 use crate::error::{Error, Result};
 use crate::registry::SupervisorConfig;
+use crate::storage::StorageProvider;
 use crate::tinybus_module::{McpService, ModuleConfig};
 
 /// How many active directories one module process will serve.
@@ -108,6 +109,8 @@ impl ServiceOwner {
 /// The root object's ability to serve additional directories.
 pub(in crate::tinybus_module) struct DirectoryOpener {
     connection: Connection,
+    /// The root module's host-bound provider, reused by every opened directory.
+    provider: Arc<dyn StorageProvider>,
     /// The client configuration used by legacy `Open(data_dir)`.
     client: Arc<std::sync::RwLock<McpClientConfig>>,
     supervisor: SupervisorConfig,
@@ -142,6 +145,7 @@ impl DirectoryOpener {
         connection: Connection,
         config: &ModuleConfig,
         supervisor: SupervisorConfig,
+        provider: Arc<dyn StorageProvider>,
     ) -> Result<Self> {
         let mut served = HashMap::new();
         if let Some(dir) = &config.data_dir {
@@ -158,6 +162,7 @@ impl DirectoryOpener {
 
         Ok(Self {
             connection,
+            provider,
             client: Arc::new(std::sync::RwLock::new(config.client.clone())),
             supervisor,
             served: Arc::new(Mutex::new(served)),
@@ -550,7 +555,15 @@ impl DirectoryOpener {
         client: McpClientConfig,
     ) -> Result<McpService> {
         let stdio = crate::tinybus_module::stdio_launchers(Some(&self.connection), &client);
-        McpService::new_with_stdio(&ModuleConfig { data_dir, client }, stdio)
+        McpService::with_provider_and_stdio(
+            &ModuleConfig {
+                data_dir,
+                client,
+                storage_descriptor: None,
+            },
+            Arc::clone(&self.provider),
+            stdio,
+        )
     }
 
     async fn configured_service(

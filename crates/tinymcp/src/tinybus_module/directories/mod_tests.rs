@@ -8,7 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use serde_json::{Value, json};
-use tinybus::transport::memory::MemoryBus;
+use tinybus::transport::memory::{MemoryBus, MemoryTransport};
 use tinybus::{Connection, Error as BusError};
 use tinymcp_bus::{
     DIRECTORY_OBJECT_PREFIX, INTERFACE, McpClientConfig, McpServerConfig, OBJECT_PATH,
@@ -23,6 +23,7 @@ use crate::tinybus_module::{McpService, ModuleConfig, test_linked_module};
 /// stays alive and receives the same attestation as production-linked code.
 struct TestBus {
     connection: Connection,
+    _controller: Connection,
     _host: tinybus::module::ModuleHost,
     _broker_task: tokio::task::JoinHandle<tinybus::Result<()>>,
 }
@@ -40,7 +41,14 @@ impl std::ops::Deref for TestBus {
 async fn serve_root(config: &ModuleConfig) -> TestBus {
     static INSTALL_ONCE: std::sync::Once = std::sync::Once::new();
     let bus = MemoryBus::new();
-    let broker = tinybus::broker::Broker::new();
+    let broker = tinybus::broker::Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(std::sync::Arc::new(broker_transport))
+        .unwrap();
+    let controller = Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
     let broker_task = broker.spawn(bus.clone());
     // The linked module's data directories sit on the in-memory provider: an
     // in-process bus has no attested storage host to give it secrets.
@@ -56,6 +64,9 @@ async fn serve_root(config: &ModuleConfig) -> TestBus {
     let info = host
         .attach_linked_with_config(module, serde_json::to_value(config).unwrap())
         .unwrap();
+    host.ensure_ready(info.manifest.bus_name.as_str())
+        .await
+        .unwrap();
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
@@ -67,6 +78,7 @@ async fn serve_root(config: &ModuleConfig) -> TestBus {
 
     TestBus {
         connection,
+        _controller: controller,
         _host: host,
         _broker_task: broker_task,
     }
@@ -81,10 +93,16 @@ async fn serve_untrusted_root(config: &ModuleConfig) -> Connection {
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
+    let provider = crate::storage::installed_provider();
     let service = std::sync::Arc::new(
         McpService::new(config)
             .unwrap()
-            .with_opener(connection.clone(), config, SupervisorConfig::default())
+            .with_opener(
+                connection.clone(),
+                config,
+                SupervisorConfig::default(),
+                provider,
+            )
             .unwrap(),
     );
     service.register_root();
@@ -181,6 +199,7 @@ async fn conflicting_open_is_rejected_while_transition_is_pending(
 
 fn config_in(dir: &std::path::Path) -> ModuleConfig {
     ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(dir.to_path_buf()),
         ..ModuleConfig::default()
     }
@@ -359,6 +378,7 @@ async fn reconfiguring_the_load_time_directory_keeps_the_root_opener() {
         mock_static_server("beta provider").await,
     );
     let config = ModuleConfig {
+        storage_descriptor: None,
         client: configured_client("alpha", &alpha_url),
         ..config_in(root_dir.path())
     };
@@ -514,6 +534,7 @@ async fn root_transition_status_is_nonblocking_before_tree_writer_registration()
     let alpha_url = mock_static_server_with_gate("alpha provider", Some(Arc::clone(&gate))).await;
     let beta_url = mock_static_server("beta provider").await;
     let config = ModuleConfig {
+        storage_descriptor: None,
         client: configured_client("alpha", &alpha_url),
         ..config_in(root_dir.path())
     };
@@ -930,6 +951,7 @@ async fn closing_the_root_resets_its_configuration_and_keeps_the_opener_alive() 
     let root_dir = tempfile::tempdir().unwrap();
     let endpoint = mock_static_server("signed-in provider").await;
     let config = ModuleConfig {
+        storage_descriptor: None,
         client: configured_client("signed-in", &endpoint),
         ..config_in(root_dir.path())
     };
@@ -1192,6 +1214,7 @@ async fn opener_debug_output_does_not_expose_directory_or_client_data() {
         connection.connection.clone(),
         &ModuleConfig::default(),
         SupervisorConfig::default(),
+        crate::storage::installed_provider(),
     )
     .unwrap();
     let debug = format!("{opener:?}");

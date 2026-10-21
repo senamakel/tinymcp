@@ -163,9 +163,10 @@ impl McpService {
         connection: Connection,
         config: &ModuleConfig,
         supervisor: SupervisorConfig,
+        provider: Arc<dyn crate::storage::StorageProvider>,
     ) -> Result<Self> {
         self.opener = Some(Arc::new(DirectoryOpener::new(
-            connection, config, supervisor,
+            connection, config, supervisor, provider,
         )?));
         Ok(self)
     }

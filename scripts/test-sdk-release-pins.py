@@ -10,8 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SDK_URL = "https://github.com/tinyhumansai/tinybus"
-SDK_VERSION = "0.3.3"
-SDK_REV = "207a9a7df15e44fdba00a807d0f7eaf21904ba0e"
+SDK_VERSION = "0.3.11"
+SDK_REV = "9e14f65666b11782ec1054aba576114026d180f8"
 MODULE_VERSION = "0.20.0"
 
 

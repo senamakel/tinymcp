@@ -259,6 +259,7 @@ fn an_absent_configuration_decodes_to_a_working_default() {
 #[test]
 fn a_configuration_round_trips() {
     let config = ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some("/data/tinymcp".into()),
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -314,6 +315,7 @@ impl crate::storage::StorageProvider for RefusingProvider {
 fn a_service_whose_provider_has_no_storage_fails_to_build() {
     let error = McpService::with_provider(
         &ModuleConfig {
+            storage_descriptor: None,
             data_dir: Some(std::path::PathBuf::from("/srv/mcp")),
             client: McpClientConfig::default(),
         },
@@ -337,6 +339,7 @@ fn a_service_with_a_data_directory_creates_its_stores() {
     let directory = tempfile::tempdir().unwrap();
 
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig::default(),
     })
@@ -359,6 +362,7 @@ fn a_service_with_a_data_directory_creates_its_stores() {
 #[test]
 fn a_service_registers_the_statically_declared_servers() {
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -380,6 +384,7 @@ fn a_service_reopens_an_existing_store() {
     let directory = tempfile::tempdir().unwrap();
 
     let first = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig::default(),
     })
@@ -399,6 +404,7 @@ fn a_service_reopens_an_existing_store() {
     drop(first);
 
     let second = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig::default(),
     })
@@ -494,6 +500,7 @@ async fn catalog() -> (String, Arc<AtomicUsize>) {
 /// A service over a temporary workspace, browsing `catalog_base`.
 fn service_at(directory: &std::path::Path, catalog_base: &str) -> McpService {
     McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(directory.to_path_buf()),
         client: McpClientConfig {
             registry_auth: McpRegistryAuthConfig {
@@ -981,6 +988,7 @@ async fn installing_and_connecting_with_a_bad_handle_is_refused_before_anything_
 #[tokio::test]
 async fn the_static_list_names_what_the_host_declared() {
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1002,6 +1010,7 @@ async fn the_static_list_names_what_the_host_declared() {
 #[tokio::test]
 async fn static_server_summaries_keep_legacy_fields_and_redact_endpoint_secrets() {
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1079,7 +1088,7 @@ async fn configured_tool_call_does_not_register_the_one_shot_server() {
 
 #[tokio::test]
 async fn configured_tool_call_runs_confidentially_without_registering_server() {
-    use tinybus::{Connection, broker::Broker, module::ModuleHost, transport::memory::MemoryBus};
+    use tinybus::{Connection, transport::memory::MemoryBus};
     use tinymcp_bus::{ClassifiedStaticToolCall, ConfiguredToolCallRequest};
 
     let hits = Arc::new(AtomicUsize::new(0));
@@ -1120,14 +1129,8 @@ async fn configured_tool_call_runs_confidentially_without_registering_server() {
     let server_task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
     let bus = MemoryBus::new();
-    let broker = Broker::new();
-    let broker_task = broker.spawn(bus.clone());
-    let host = ModuleHost::new(broker);
-    host.attach_linked_with_config(
-        test_linked_module().unwrap(),
-        serde_json::to_value(ModuleConfig::default()).unwrap(),
-    )
-    .unwrap();
+    let (host, _controller, broker_task) =
+        attach_linked_module_with_selected_controller(&bus).await;
     let connection = Connection::connect(bus.connect().await.unwrap())
         .await
         .unwrap();
@@ -1174,6 +1177,37 @@ async fn configured_tool_call_runs_confidentially_without_registering_server() {
     broker_task.abort();
     server_task.abort();
     drop(host);
+}
+
+async fn attach_linked_module_with_selected_controller(
+    bus: &tinybus::transport::memory::MemoryBus,
+) -> (
+    tinybus::module::ModuleHost,
+    tinybus::Connection,
+    tokio::task::JoinHandle<tinybus::Result<()>>,
+) {
+    use tinybus::{broker::Broker, module::ModuleHost, transport::memory::MemoryTransport};
+
+    let broker = Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .unwrap();
+    let controller = tinybus::Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
+    let broker_task = broker.spawn(bus.clone());
+    let host = ModuleHost::new(broker);
+    let info = host
+        .attach_linked_with_config(
+            test_linked_module().unwrap(),
+            serde_json::to_value(ModuleConfig::default()).unwrap(),
+        )
+        .unwrap();
+    host.ensure_ready(info.manifest.bus_name.as_str())
+        .await
+        .unwrap();
+    (host, controller, broker_task)
 }
 
 #[tokio::test]
@@ -1432,6 +1466,7 @@ async fn static_tool_call_redacts_the_configured_credential_before_bus_return() 
     );
     let endpoint = serve(app).await;
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1473,6 +1508,7 @@ async fn static_tool_call_redacts_the_configured_credential_before_bus_return() 
 async fn static_tool_metadata_redacts_configured_credentials_before_bus_return() {
     let credential = "mcp-static-metadata-secret-731";
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1539,6 +1575,7 @@ async fn classified_static_call_scrubs_rendered_success_and_envelope() {
     );
     let endpoint = serve(app).await;
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1590,6 +1627,7 @@ async fn classified_static_call_preserves_unauthorized_oauth_signals() {
     );
     let endpoint = serve(app).await;
     let service = McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -1772,6 +1810,7 @@ async fn setting_up_serves_the_interface_and_claims_its_name() {
     super::setup_over_installed_storage(
         connection,
         ModuleConfig {
+            storage_descriptor: None,
             data_dir: Some(directory.path().to_path_buf()),
             client: McpClientConfig::default(),
         },
@@ -1798,6 +1837,7 @@ async fn a_module_that_came_up_answers_a_call_on_its_object_path() {
     super::setup_over_installed_storage(
         serving,
         ModuleConfig {
+            storage_descriptor: None,
             data_dir: Some(directory.path().to_path_buf()),
             client: McpClientConfig::default(),
         },
@@ -1834,6 +1874,7 @@ async fn a_module_that_cannot_open_its_store_fails_to_come_up() {
     let error = super::setup_over_installed_storage(
         connection,
         ModuleConfig {
+            storage_descriptor: None,
             // An empty directory names nothing a provider could serve.
             data_dir: Some(std::path::PathBuf::new()),
             client: McpClientConfig::default(),
@@ -1950,6 +1991,7 @@ async fn static_cached_tools_survive_service_reopen_without_dialling() {
     let directory = tempfile::tempdir().unwrap();
     let (url, hits) = mock_mcp_server_counted().await;
     let config = ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(directory.path().to_path_buf()),
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -2042,6 +2084,7 @@ async fn service_with_connected_app_server(directory: &std::path::Path, url: &st
 /// authenticated with `token`.
 fn service_with_static_app_server(url: &str, token: &str) -> McpService {
     McpService::new(&ModuleConfig {
+        storage_descriptor: None,
         data_dir: None,
         client: McpClientConfig {
             servers: vec![McpServerConfig {
@@ -2604,6 +2647,7 @@ async fn a_module_comes_up_without_waiting_for_a_server_that_never_answers() {
         super::setup_over_installed_storage(
             in_process_connection().await,
             ModuleConfig {
+                storage_descriptor: None,
                 data_dir: Some(directory.path().to_path_buf()),
                 client: McpClientConfig::default(),
             },
@@ -3034,6 +3078,7 @@ async fn a_module_without_a_data_directory_runs_without_host_storage() {
     );
 
     let config = ModuleConfig {
+        storage_descriptor: None,
         data_dir: Some(std::env::temp_dir()),
         ..ModuleConfig::default()
     };
@@ -3130,4 +3175,187 @@ async fn configured_tool_call_uses_the_services_sandbox_not_an_empty_launcher_se
     .await;
     let call: tinymcp_bus::ClassifiedStaticToolCall = serde_json::from_value(reply).unwrap();
     assert!(!call.outcome.ok);
+}
+
+struct BoundStorageContext;
+
+impl tinystoragedrivers_busproxy::HostContext for BoundStorageContext {}
+
+struct BoundStorageEnvironment {
+    server: Arc<tinystoragedrivers_client::StorageServer>,
+}
+
+#[async_trait::async_trait]
+impl tinystoragedrivers_busproxy::Environment<BoundStorageContext> for BoundStorageEnvironment {
+    async fn resolve(
+        &self,
+        _context: &BoundStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<
+        tinystoragedrivers_busproxy::ResolvedStorage,
+        tinystoragedrivers_busproxy::HostFailure,
+    > {
+        let grant = tinystoragedrivers_busproxy::StorageGrant::from_needs_with_exact_secrets(
+            tinymcp_bus::storage::storage_needs(),
+            &tinystoragedrivers_busproxy::GrantPolicy {
+                writable: true,
+                allow_secrets: true,
+                ..Default::default()
+            },
+        )
+        .map_err(|_| tinystoragedrivers_busproxy::HostFailure::Denied("invalid-test-grant"))?;
+        Ok(tinystoragedrivers_busproxy::ResolvedStorage {
+            backend_identity: "tinymcp-test".to_owned(),
+            binding_epoch: 1,
+            canonical_scope: "test:tinymcp".to_owned(),
+            grant,
+            server: Arc::clone(&self.server),
+        })
+    }
+
+    async fn admit_write(
+        &self,
+        _context: &BoundStorageContext,
+        _module: &tinybus::module::ModuleId,
+    ) -> Result<(), tinystoragedrivers_busproxy::HostFailure> {
+        Ok(())
+    }
+}
+
+struct BoundStorageAudit;
+
+impl tinystoragedrivers_busproxy::AuditSink for BoundStorageAudit {
+    fn record(&self, _event: tinystoragedrivers_busproxy::AuditEvent) {}
+}
+
+type BoundStorageRegistration = tinystoragedrivers_busproxy::StorageRegistration<
+    BoundStorageEnvironment,
+    BoundStorageAudit,
+    BoundStorageContext,
+>;
+
+async fn run_module_with_bound_storage(
+    connection: tinybus::Connection,
+    registration: Arc<BoundStorageRegistration>,
+    lease_tx: tokio::sync::oneshot::Sender<tinystoragedrivers_busproxy::StorageLease>,
+    prepared_tx: tokio::sync::oneshot::Sender<()>,
+) -> tinybus::Result<()> {
+    let peer = connection
+        .unique_name()
+        .ok_or_else(|| tinybus::Error::failed("module has no assigned peer"))?;
+    let (lease, descriptor) = registration
+        .register_lease(
+            tinystoragedrivers_busproxy::HostStorageContext::new(BoundStorageContext),
+            peer,
+        )
+        .await
+        .map_err(|_| tinybus::Error::failed("test storage lease was refused"))?;
+    let provider =
+        crate::storage::BusProvider::connect_bound(connection.clone(), descriptor.clone())
+            .await
+            .map_err(|_| tinybus::Error::failed("module could not connect its storage lease"))?;
+    let ports =
+        crate::storage::StorageProvider::ports_for(&provider, std::path::Path::new("module-data"))
+            .map_err(|_| tinybus::Error::failed("module storage ports were unavailable"))?;
+    ports
+        .prepare()
+        .map_err(|_| tinybus::Error::failed("module storage ports could not prepare"))?;
+    prepared_tx
+        .send(())
+        .map_err(|()| tinybus::Error::failed("storage test observer was dropped"))?;
+    lease_tx
+        .send(lease)
+        .map_err(|_| tinybus::Error::failed("storage lease observer was dropped"))?;
+
+    let config = ModuleConfig {
+        storage_descriptor: Some(descriptor),
+        ..Default::default()
+    };
+    super::setup(connection, config).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_selected_linked_module_uses_its_bound_storage_lease() {
+    use std::time::Duration;
+    use tinybus::{
+        broker::Broker,
+        module::ModuleHost,
+        transport::memory::{MemoryBus, MemoryTransport},
+    };
+    use tinystoragedrivers_busproxy::{
+        GovernedEndpointLimits, GovernedStorage, TinyBusCallerDirectory,
+    };
+    use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
+
+    let bus = MemoryBus::new();
+    let broker = Broker::new_restricted_module_control();
+    let (broker_transport, controller_transport) = MemoryTransport::pair();
+    broker
+        .attach_module_controller(Arc::new(broker_transport))
+        .unwrap();
+    let controller = tinybus::Connection::connect(Box::new(controller_transport))
+        .await
+        .unwrap();
+    let broker_task = broker.spawn(bus.clone());
+    let host = ModuleHost::new(broker);
+    let backend = MemoryStorage::new();
+    let storage = backend.for_scope(&Scope::local()).unwrap();
+    let server = Arc::new(tinystoragedrivers_client::StorageServer::new(storage));
+    let environment = Arc::new(BoundStorageEnvironment { server });
+    let policy = GovernedStorage::new(
+        environment,
+        Arc::new(BoundStorageAudit),
+        GovernedEndpointLimits::default(),
+    );
+    let service_connection = tinybus::Connection::connect(bus.connect().await.unwrap())
+        .await
+        .unwrap();
+    let registration = Arc::new(policy.register(
+        service_connection,
+        Arc::new(TinyBusCallerDirectory(host.sender_lookup())),
+        tokio::runtime::Handle::current(),
+    ));
+    let (lease_tx, lease_rx) = tokio::sync::oneshot::channel();
+    let (prepared_tx, prepared_rx) = tokio::sync::oneshot::channel();
+    let registration_for_setup = Arc::clone(&registration);
+
+    let info = host
+        .attach_linked_with_setup(
+            test_linked_module().unwrap(),
+            serde_json::to_value(ModuleConfig::default()).unwrap(),
+            move |connection| {
+                run_module_with_bound_storage(
+                    connection,
+                    registration_for_setup,
+                    lease_tx,
+                    prepared_tx,
+                )
+            },
+        )
+        .await
+        .unwrap();
+    host.ensure_ready(info.manifest.bus_name.as_str())
+        .await
+        .unwrap();
+
+    tokio::time::timeout(Duration::from_secs(2), prepared_rx)
+        .await
+        .expect("the selected module did not prepare its host-bound storage")
+        .unwrap();
+    let lease = lease_rx.await.unwrap();
+    let proxy = controller
+        .proxy(names::INTERFACE, names::OBJECT_PATH, names::INTERFACE)
+        .unwrap();
+    let has_state: bool = proxy
+        .call(names::methods::HAS_STORED_STATE, ("bound-route-check",))
+        .await
+        .unwrap();
+    assert!(
+        !has_state,
+        "a prepared storage scope contains no MCP records"
+    );
+    host.shutdown(Duration::from_secs(2)).await;
+    drop(lease);
+    registration.shutdown().await.unwrap();
+    broker_task.abort();
 }

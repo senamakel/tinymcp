@@ -242,6 +242,82 @@ fn a_cached_response_that_is_not_json_is_dropped_rather_than_blocking_the_step()
 }
 
 #[test]
+fn legacy_rows_without_rekey_data_are_dropped() {
+    let input = |id: &str, body: Value| SourceRecord {
+        id: id.to_owned(),
+        body,
+        meta: tinystoragedrivers_core::Meta::unknown(),
+    };
+
+    // The server step can carry a non-object record only by dropping it.
+    let non_object =
+        rewrite_documents(SERVERS, vec![input("srv-1", json!("invalid"))], server).unwrap();
+    assert_eq!(
+        non_object,
+        Vec::<tinystoragedrivers_core::schema::TargetRecord>::new()
+    );
+
+    let cases: [(&str, Rewrite, Value); 6] = [
+        ("claim", claim, json!({"server_id": "srv-1"})),
+        (
+            "response-without-key",
+            cached_response,
+            json!({"body_json": "{}"}),
+        ),
+        (
+            "response-with-invalid-json",
+            cached_response,
+            json!({"cache_key": "k", "body_json": "not-json"}),
+        ),
+        ("tools-without-key", cached_tools, json!({"tools": []})),
+        (
+            "index-without-source",
+            index_row,
+            json!({"qualified_name": "@acme/files", "record_json": "{}"}),
+        ),
+        (
+            "index-state-without-source",
+            index_state,
+            json!({"started_at": 10}),
+        ),
+    ];
+
+    for (id, rewrite, body) in cases {
+        let Value::Object(body) = body else {
+            unreachable!("fixtures are JSON objects");
+        };
+        let record = input(id, Value::Object(body.clone()));
+        assert_eq!(rewrite(&record, body).unwrap(), None, "{id}");
+    }
+
+    let invalid_index_record = input(
+        "index-1",
+        json!({
+            "source": "official",
+            "qualified_name": "@acme/files",
+            "record_json": "not-json"
+        }),
+    );
+    let Value::Object(body) = invalid_index_record.body.clone() else {
+        unreachable!("fixture is a JSON object");
+    };
+    assert_eq!(
+        index_row(&invalid_index_record, body).unwrap(),
+        None,
+        "an index row without a valid cached record is not migratable"
+    );
+
+    let without_creation_time = rewrite_documents(
+        SERVERS,
+        vec![input("srv-with-unknown-meta", v1_server())],
+        server,
+    )
+    .unwrap();
+    assert_eq!(without_creation_time.len(), 1);
+    assert_eq!(without_creation_time[0].created_ms, None);
+}
+
+#[test]
 fn cached_tools_are_keyed_by_the_server_key() {
     let fixture = Fixture::new();
     fixture.legacy(
@@ -357,4 +433,219 @@ fn the_module_can_be_used_once_every_step_has_finished() {
 
     fixture.registry.check_ready(SERVERS).unwrap();
     fixture.registry.check_ready(AUDIT_STREAM).unwrap();
+}
+
+#[cfg(feature = "module")]
+#[test]
+fn the_module_handler_dispatches_each_document_step_and_preserves_record_metadata() {
+    use tinystoragedrivers_core::Meta;
+    use tinystoragedrivers_core::schema::delivery::{MigrationPayload, MigrationPayloadReply};
+    use tinystoragedrivers_core::schema::{Expiry, SourceRecord};
+
+    let meta = Meta {
+        schema: 1,
+        created_ms: 1234,
+        updated_ms: 5678,
+        expires_ms: Some(90_000),
+    };
+    let cases = [
+        (
+            crate::storage::schema::SERVERS_V2_OPERATION,
+            "srv-1",
+            v1_server(),
+            SERVERS,
+            "srv-1",
+            "installed_ms",
+        ),
+        (
+            crate::storage::schema::SERVER_NAMES_V2_OPERATION,
+            "old-claim",
+            json!({"qualified_name":"@acme/files", "server_id":"srv-1", "claimed_at":5000}),
+            SERVER_NAMES,
+            "@acme%2Ffiles",
+            "claimed_ms",
+        ),
+        (
+            crate::storage::schema::REGISTRY_CACHE_V2_OPERATION,
+            "digest-1",
+            json!({"cache_key":"official:search", "body_json":"{\"servers\":[]}", "cached_at":9000}),
+            REGISTRY_CACHE,
+            "official:search",
+            "cached_ms",
+        ),
+        (
+            crate::storage::schema::TOOL_CACHE_V2_OPERATION,
+            "digest-2",
+            json!({"server_key":"static:docs", "tools":[], "cached_at":7000}),
+            TOOL_CACHE,
+            "static:docs",
+            "cached_ms",
+        ),
+        (
+            crate::storage::schema::REGISTRY_INDEX_V2_OPERATION,
+            "legacy-index",
+            json!({"source":"official", "qualified_name":"@acme/files", "record_json":"{}", "synced_at":8000}),
+            REGISTRY_INDEX,
+            "official/@acme%2Ffiles",
+            "synced_ms",
+        ),
+        (
+            crate::storage::schema::REGISTRY_INDEX_STATE_V2_OPERATION,
+            "legacy-state",
+            json!({"source":"official", "started_at":1000, "synced_at":2000}),
+            REGISTRY_INDEX_STATE,
+            "official",
+            "started_ms",
+        ),
+    ];
+
+    for (operation, id, body, collection, target_id, migrated_time_field) in cases {
+        let reply = super::TinyMcpMigrationHandler.transform(MigrationPayload::Documents(
+            tinystoragedrivers_core::schema::DocumentsTransformRequest {
+                operation: operation.to_owned(),
+                version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+                records: vec![SourceRecord {
+                    id: id.to_owned(),
+                    body,
+                    meta,
+                }],
+            },
+        ));
+        let MigrationPayloadReply::Documents(Ok(records)) = reply else {
+            panic!("the selected owner transform returns document records");
+        };
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].collection, collection);
+        assert_eq!(records[0].id, target_id);
+        assert_eq!(records[0].created_ms, Some(meta.created_ms));
+        assert_eq!(records[0].expires, Expiry::At(meta.expires_ms.unwrap()));
+        assert!(records[0].body.get(migrated_time_field).is_some());
+    }
+}
+
+#[cfg(feature = "module")]
+#[test]
+fn the_module_handler_reuses_the_audit_stream_name_transform() {
+    use tinystoragedrivers_core::schema::delivery::{MigrationPayload, MigrationPayloadReply};
+
+    for (source, target) in [
+        ("mcp_audit", AUDIT_STREAM),
+        ("mcp_audit/2024/09", "mcp.audit/2024/09"),
+    ] {
+        let reply = super::TinyMcpMigrationHandler.transform(MigrationPayload::StreamPlan(
+            tinystoragedrivers_core::schema::StreamPlanRequest {
+                operation: crate::storage::schema::AUDIT_V2_OPERATION.to_owned(),
+                version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+                source: source.to_owned(),
+            },
+        ));
+        let MigrationPayloadReply::StreamPlan(Ok(Some(plan))) = reply else {
+            panic!("the audit transform returns its stream target");
+        };
+        assert_eq!(plan.target, target);
+        assert_eq!(
+            plan.mode,
+            tinystoragedrivers_core::schema::StreamMapMode::Identity
+        );
+    }
+}
+
+#[cfg(feature = "module")]
+#[test]
+fn the_module_handler_fails_closed_for_unknown_and_invalid_migration_requests() {
+    use tinystoragedrivers_core::Meta;
+    use tinystoragedrivers_core::schema::delivery::{
+        BlobTargetRequest, MigrationPayload, MigrationPayloadReply, StreamEntriesRequest,
+        StreamPlanRequest,
+    };
+    use tinystoragedrivers_core::schema::{
+        DocumentsTransformRequest, SourceRecord, TransformErrorKind, TransformResult,
+    };
+
+    fn assert_error<T: std::fmt::Debug>(result: TransformResult<T>, expected: TransformErrorKind) {
+        assert_eq!(result.unwrap_err().kind, expected);
+    }
+
+    let handler = super::TinyMcpMigrationHandler;
+    let document = |operation: &str, version| {
+        MigrationPayload::Documents(DocumentsTransformRequest {
+            operation: operation.to_owned(),
+            version,
+            records: vec![SourceRecord {
+                id: String::new(),
+                body: v1_server(),
+                meta: Meta::unknown(),
+            }],
+        })
+    };
+    let stream_plan = |operation: &str, version, source: &str| {
+        MigrationPayload::StreamPlan(StreamPlanRequest {
+            operation: operation.to_owned(),
+            version,
+            source: source.to_owned(),
+        })
+    };
+    let unsupported = TransformErrorKind::UnsupportedOperation;
+    let invalid = TransformErrorKind::InvalidInput;
+    let unsupported_version = TransformErrorKind::UnsupportedVersion;
+
+    let MigrationPayloadReply::Documents(result) = handler.transform(document("unknown", 1)) else {
+        panic!("document requests return document results");
+    };
+    assert_error(result, unsupported);
+    let MigrationPayloadReply::Documents(result) =
+        handler.transform(document(crate::storage::schema::SERVERS_V2_OPERATION, 99))
+    else {
+        panic!("document requests return document results");
+    };
+    assert_error(result, unsupported_version);
+    let MigrationPayloadReply::Documents(result) = handler.transform(document(
+        crate::storage::schema::SERVERS_V2_OPERATION,
+        crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+    )) else {
+        panic!("document requests return document results");
+    };
+    assert_error(result, invalid);
+
+    for (request, expected) in [
+        (stream_plan("unknown", 1, "mcp_audit"), unsupported),
+        (
+            stream_plan(crate::storage::schema::AUDIT_V2_OPERATION, 99, "mcp_audit"),
+            unsupported_version,
+        ),
+        (
+            stream_plan(
+                crate::storage::schema::AUDIT_V2_OPERATION,
+                crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+                "other_audit",
+            ),
+            invalid,
+        ),
+    ] {
+        let MigrationPayloadReply::StreamPlan(result) = handler.transform(request) else {
+            panic!("stream plans return stream-plan results");
+        };
+        assert_error(result, expected);
+    }
+
+    let MigrationPayloadReply::StreamEntries(result) =
+        handler.transform(MigrationPayload::StreamEntries(StreamEntriesRequest {
+            operation: crate::storage::schema::AUDIT_V2_OPERATION.to_owned(),
+            version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+            entries: vec![],
+        }))
+    else {
+        panic!("stream-entry requests return stream-entry results");
+    };
+    assert_error(result, unsupported);
+    let MigrationPayloadReply::BlobTarget(result) =
+        handler.transform(MigrationPayload::BlobTarget(BlobTargetRequest {
+            operation: "mcp.blob_v2".to_owned(),
+            version: crate::storage::schema::MIGRATION_TRANSFORM_VERSION,
+            source: "mcp/old".to_owned(),
+        }))
+    else {
+        panic!("blob requests return blob results");
+    };
+    assert_error(result, unsupported);
 }

@@ -23,3 +23,4 @@ if [[ ! -f "$module_path" ]]; then
 fi
 
 cargo run --package tinymcp --example verify_module -- "$module_path"
+cargo run --package tinymcp --example verify_migration -- "$module_path"

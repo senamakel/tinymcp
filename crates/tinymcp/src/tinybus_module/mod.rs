@@ -32,9 +32,11 @@ pub use service::McpService;
 
 use std::sync::Arc;
 use tinybus::{Connection, Result as TinyBusResult};
+use tinybus_module::ModuleSetupContext;
 use tinymcp_bus::names;
 
 use crate::registry::SupervisorConfig;
+use crate::storage::{TinyMcpMigrationHandler, storage_schema_declaration};
 
 /// Builds the service and serves it.
 ///
@@ -47,6 +49,13 @@ use crate::registry::SupervisorConfig;
 /// here as background work and `setup` does not wait for them, so a server that
 /// is down delays nothing. See [`maintenance`].
 pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyBusResult<()> {
+    if let Some(descriptor) = config.storage_descriptor.clone() {
+        let provider = crate::storage::BusProvider::connect_bound(connection.clone(), descriptor)
+            .await
+            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?;
+        return setup_with_provider(connection, config, Arc::new(provider)).await;
+    }
+
     // A module that keeps state reaches the host's storage over the bus; the
     // host binds the scope and the grant. A host that linked the module into
     // its own process and installed a provider has already chosen. Failing
@@ -67,6 +76,22 @@ pub(super) async fn setup(connection: Connection, config: ModuleConfig) -> TinyB
         crate::storage::install_provider(provider);
     }
     setup_over_installed_storage(connection, config).await
+}
+
+/// Registers module-owned migration transforms before ordinary storage setup.
+pub(super) async fn setup_with_context(
+    context: ModuleSetupContext,
+    config: ModuleConfig,
+) -> TinyBusResult<()> {
+    let declaration = storage_schema_declaration()
+        .map_err(|_| tinybus::Error::failed("TinyMCP migration schema unavailable"))?;
+    tinystoragedrivers_tinybus::migration::serve_module_migration(
+        &context,
+        declaration,
+        Arc::new(TinyMcpMigrationHandler),
+    )
+    .await?;
+    setup(context.connection().clone(), config).await
 }
 
 /// The host-storage provider to install for `config`, if one can be had.
@@ -127,14 +152,26 @@ pub(super) async fn setup_over_installed_storage(
     connection: Connection,
     config: ModuleConfig,
 ) -> TinyBusResult<()> {
+    setup_with_provider(connection, config, crate::storage::installed_provider()).await
+}
+
+async fn setup_with_provider(
+    connection: Connection,
+    config: ModuleConfig,
+    provider: Arc<dyn crate::storage::StorageProvider>,
+) -> TinyBusResult<()> {
     let supervisor = SupervisorConfig::default();
     let service = Arc::new(
-        McpService::new_with_stdio(&config, stdio_launchers(Some(&connection), &config.client))
-            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
-            .with_maintenance(supervisor.clone())
-            .await
-            .with_opener(connection.clone(), &config, supervisor)
-            .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
+        McpService::with_provider_and_stdio(
+            &config,
+            provider.clone(),
+            stdio_launchers(Some(&connection), &config.client),
+        )
+        .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?
+        .with_maintenance(supervisor.clone())
+        .await
+        .with_opener(connection.clone(), &config, supervisor, provider)
+        .map_err(|error| tinybus::Error::failed(format!("tinymcp could not start: {error}")))?,
     );
 
     service.register_root();
@@ -151,8 +188,6 @@ macro_rules! export_module {
     ($($declaration:tt)*) => {
         #[cfg(any(feature = "static-link", test))]
         mod linked_exports {
-            // TinyBus generates these three ABI items without rustdoc.
-            #![cfg_attr(not(test), expect(missing_docs, reason = "generated TinyBus ABI entries"))]
             use super::*;
             tinybus_module::module_export_static! { $($declaration)* }
         }
@@ -172,13 +207,13 @@ macro_rules! export_module {
 }
 
 export_module! {
-    setup = setup,
+    setup_with_context = setup_with_context,
     config = ModuleConfig,
     // More than one, because a tool call on one server must not wait behind a
     // slow call on another: these are third-party endpoints and subprocesses,
     // and one of them being slow is routine.
     worker_threads = 4,
-    provides = ["ai.tinyhumans.tinymcp.Mcp"],
+    provides = ["ai.tinyhumans.tinymcp.Mcp", "org.tinystoragedrivers.Migration"],
     methods = [
         "RegistrySearch",
         "RegistrySearchCurated",

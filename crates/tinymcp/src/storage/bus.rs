@@ -11,7 +11,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use tinybus::Connection;
-use tinystoragedrivers_busproxy::{connect_storage, module_scope_label};
+use tinystoragedrivers_busproxy::{
+    BusTransport, StorageDescriptor, connect_storage, module_scope_label,
+};
+use tinystoragedrivers_client::BusStorage;
 use tinystoragedrivers_core::StorageBackend;
 use tinystoragedrivers_secrets::SecretStore;
 
@@ -36,6 +39,42 @@ impl BusProvider {
     /// capability calls, or the bus fails.
     pub async fn connect(connection: Connection) -> Result<Self> {
         Self::connect_with(connection, None).await
+    }
+
+    /// Connects to the host-issued current-only storage lease on this module's
+    /// existing `TinyBus` connection.
+    ///
+    /// The descriptor selects a unique service peer and route. The TSD host
+    /// still authenticates this module peer and checks that the lease is live
+    /// for every request.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Store`] when the descriptor is invalid or revoked,
+    /// the host refuses the module, or the bus fails.
+    pub async fn connect_bound(
+        connection: Connection,
+        descriptor: StorageDescriptor,
+    ) -> Result<Self> {
+        let scope = module_scope_label();
+        let transport = BusTransport::connect_bound(connection, descriptor)
+            .await
+            .map_err(|source| {
+                Error::store(
+                    "connecting to the host storage lease",
+                    tinystoragedrivers_core::StorageError::unavailable(source.to_string()),
+                )
+            })?;
+        let storage = BusStorage::connect(Arc::new(transport), scope.clone())
+            .await
+            .map_err(|source| Error::store("opening the host-bound scope", source))?;
+        let scoped = storage
+            .for_scope(&scope)
+            .map_err(|source| Error::store("opening the host-bound scope", source))?;
+        let secrets = storage.secrets();
+        Ok(Self {
+            ports: StoragePorts::from_scoped(&scoped, secrets),
+        })
     }
 
     /// [`connect`](Self::connect), with `secrets` standing in for the host's

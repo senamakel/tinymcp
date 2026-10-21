@@ -9,4 +9,4 @@ publish = false
 
 [dependencies]
 tinymcp-bus = { path = ".." }
-tinystoragedrivers-bus = { version = "1.8", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "595723e1b1cabeb3d36f0c5b6ff2e11b458e7558", default-features = false }
+tinystoragedrivers-bus = { version = "1.9", git = "https://github.com/tinyhumansai/tinystoragedrivers", rev = "a04e3a174fa8f28d5229a816ca6b39c72a9efd7b", default-features = false }

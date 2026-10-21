@@ -12,9 +12,24 @@
 use serde_json::{Map, Value};
 use tinystoragedrivers_core::schema::{SourceRecord, Step, TargetRecord};
 
+#[cfg(feature = "module")]
+use tinystoragedrivers_core::schema::delivery::{
+    MigrationPayload, MigrationPayloadHandler, MigrationPayloadReply, StreamPlanRequest,
+};
+#[cfg(feature = "module")]
+use tinystoragedrivers_core::schema::{
+    StreamMapMode, StreamPlan, TransformError, TransformErrorKind, TransformResult,
+};
+
 use super::schema::{
     AUDIT_STREAM, REGISTRY_CACHE, REGISTRY_INDEX, REGISTRY_INDEX_STATE, SERVER_NAMES, SERVERS,
     TOOL_CACHE, doc_id,
+};
+#[cfg(any(feature = "module", test))]
+use super::schema::{
+    AUDIT_V2_OPERATION, MIGRATION_TRANSFORM_VERSION, REGISTRY_CACHE_V2_OPERATION,
+    REGISTRY_INDEX_STATE_V2_OPERATION, REGISTRY_INDEX_V2_OPERATION, SERVER_NAMES_V2_OPERATION,
+    SERVERS_V2_OPERATION, TOOL_CACHE_V2_OPERATION,
 };
 
 /// The version the steps read.
@@ -57,42 +72,55 @@ pub(super) fn steps() -> Vec<Step> {
             index_state,
         ),
         Step::stream("audit_v2", AUDIT_STREAM, FROM, TO, |name, entries| {
-            let rest = name
-                .strip_prefix(LEGACY_AUDIT)
-                .unwrap_or(&name)
-                .trim_start_matches('/');
-            let target = if rest.is_empty() {
-                AUDIT_STREAM.to_owned()
-            } else {
-                format!("{AUDIT_STREAM}/{rest}")
-            };
-            Ok(Some((target, entries)))
+            Ok(Some((audit_stream_target(&name), entries)))
         })
         .source_prefix(LEGACY_AUDIT),
     ]
+}
+
+/// The target-name rule shared by the local audit callback and remote plan.
+fn audit_stream_target(name: &str) -> String {
+    let rest = name
+        .strip_prefix(LEGACY_AUDIT)
+        .unwrap_or(name)
+        .trim_start_matches('/');
+    if rest.is_empty() {
+        AUDIT_STREAM.to_owned()
+    } else {
+        format!("{AUDIT_STREAM}/{rest}")
+    }
 }
 
 /// A step reading the legacy collection `legacy` and writing `item`, applying
 /// `rewrite` to each record's body.
 fn documents(id: &'static str, item: &'static str, legacy: &'static str, rewrite: Rewrite) -> Step {
     Step::new(id, item, FROM, TO, move |batch| {
-        let mut targets = Vec::with_capacity(batch.len());
-        for record in batch {
-            let Value::Object(body) = record.body.clone() else {
-                continue;
-            };
-            if let Some((new_id, body)) = rewrite(&record, body)? {
-                let mut target =
-                    TargetRecord::new(item, new_id, body).expires_ms(record.meta.expires_ms);
-                if record.meta.created_ms > 0 {
-                    target = target.created_ms(record.meta.created_ms);
-                }
-                targets.push(target);
-            }
-        }
-        Ok(targets)
+        rewrite_documents(item, batch, rewrite)
     })
     .source(legacy)
+}
+
+/// Apply the same document rewrite and metadata rules locally and remotely.
+fn rewrite_documents(
+    item: &'static str,
+    batch: Vec<SourceRecord>,
+    rewrite: Rewrite,
+) -> tinystoragedrivers_core::Result<Vec<TargetRecord>> {
+    let mut targets = Vec::with_capacity(batch.len());
+    for record in batch {
+        let Value::Object(body) = record.body.clone() else {
+            continue;
+        };
+        if let Some((new_id, body)) = rewrite(&record, body)? {
+            let mut target =
+                TargetRecord::new(item, new_id, body).expires_ms(record.meta.expires_ms);
+            if record.meta.created_ms > 0 {
+                target = target.created_ms(record.meta.created_ms);
+            }
+            targets.push(target);
+        }
+    }
+    Ok(targets)
 }
 
 /// Moves `from` to `to` when the record has it.
@@ -194,6 +222,100 @@ fn index_state(
     rename(&mut body, "started_at", "started_ms");
     rename(&mut body, "synced_at", "synced_ms");
     Ok(Some((doc_id(&[&source])?, Value::Object(body))))
+}
+
+/// Stateless owner-side adapter for the existing `TinyMCP` migration callbacks.
+#[cfg(feature = "module")]
+pub(crate) struct TinyMcpMigrationHandler;
+
+#[cfg(feature = "module")]
+impl MigrationPayloadHandler for TinyMcpMigrationHandler {
+    fn transform(&self, payload: MigrationPayload) -> MigrationPayloadReply {
+        match payload {
+            MigrationPayload::Documents(request) => MigrationPayloadReply::Documents(
+                transform_documents(&request.operation, request.version, request.records),
+            ),
+            MigrationPayload::StreamPlan(request) => {
+                MigrationPayloadReply::StreamPlan(transform_stream_plan(&request))
+            }
+            MigrationPayload::StreamEntries(_) => MigrationPayloadReply::StreamEntries(
+                unsupported_operation("TinyMCP audit entries are copied unchanged"),
+            ),
+            MigrationPayload::BlobTarget(_) => MigrationPayloadReply::BlobTarget(
+                unsupported_operation("TinyMCP has no blob migration steps"),
+            ),
+        }
+    }
+}
+
+#[cfg(feature = "module")]
+fn transform_documents(
+    operation: &str,
+    version: u32,
+    records: Vec<SourceRecord>,
+) -> TransformResult<Vec<TargetRecord>> {
+    let (item, rewrite) = match operation {
+        SERVERS_V2_OPERATION => (SERVERS, server as Rewrite),
+        SERVER_NAMES_V2_OPERATION => (SERVER_NAMES, claim as Rewrite),
+        REGISTRY_CACHE_V2_OPERATION => (REGISTRY_CACHE, cached_response as Rewrite),
+        TOOL_CACHE_V2_OPERATION => (TOOL_CACHE, cached_tools as Rewrite),
+        REGISTRY_INDEX_V2_OPERATION => (REGISTRY_INDEX, index_row as Rewrite),
+        REGISTRY_INDEX_STATE_V2_OPERATION => (REGISTRY_INDEX_STATE, index_state as Rewrite),
+        _ => {
+            return unsupported_operation("unknown TinyMCP document migration operation");
+        }
+    };
+    if version != MIGRATION_TRANSFORM_VERSION {
+        return Err(transform_error(
+            TransformErrorKind::UnsupportedVersion,
+            "unsupported TinyMCP document transform version",
+        ));
+    }
+    rewrite_documents(item, records, rewrite)
+        .map_err(|_| invalid_migration_input("TinyMCP document transform rejected its input"))
+}
+
+#[cfg(feature = "module")]
+fn transform_stream_plan(request: &StreamPlanRequest) -> TransformResult<Option<StreamPlan>> {
+    if request.operation != AUDIT_V2_OPERATION {
+        return unsupported_operation("unknown TinyMCP stream migration operation");
+    }
+    if request.version != MIGRATION_TRANSFORM_VERSION {
+        return Err(transform_error(
+            TransformErrorKind::UnsupportedVersion,
+            "unsupported TinyMCP stream transform version",
+        ));
+    }
+    if !request.source.starts_with(LEGACY_AUDIT) {
+        return Err(invalid_migration_input(
+            "TinyMCP audit transform received a source outside its declared prefix",
+        ));
+    }
+    Ok(Some(StreamPlan {
+        target: audit_stream_target(&request.source),
+        mode: StreamMapMode::Identity,
+    }))
+}
+
+#[cfg(feature = "module")]
+fn unsupported_operation<T>(message: &str) -> TransformResult<T> {
+    Err(transform_error(
+        TransformErrorKind::UnsupportedOperation,
+        message,
+    ))
+}
+
+#[cfg(feature = "module")]
+fn invalid_migration_input(message: &str) -> TransformError {
+    transform_error(TransformErrorKind::InvalidInput, message)
+}
+
+#[cfg(feature = "module")]
+fn transform_error(kind: TransformErrorKind, message: &str) -> TransformError {
+    TransformError {
+        kind,
+        message: message.to_owned(),
+    }
 }
 
 #[cfg(test)]
